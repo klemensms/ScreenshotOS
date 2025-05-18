@@ -5,7 +5,7 @@ import screenshot from 'screenshot-desktop';
 import fs from 'fs';
 import { homedir } from 'os';
 import { loadStorageConfig, ensureSaveDirectory, saveStorageConfig } from './config/storage';
-import { cropImage } from './utils/jimp-helper';
+import { cropImage } from './utils/jimp-native';
 
 // Get screenshot save directory from config
 let screenshotSaveDir = loadStorageConfig().saveDirectory;
