@@ -1,0 +1,2 @@
+// This is a placeholder. Replace with a proper app icon.
+// The icon file needs to be generated from graphic design tools.

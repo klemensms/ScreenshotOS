@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "outDir": "dist",
+    "noEmit": false,
+    "types": ["react", "react-dom"]
+  },
+  "include": ["src/renderer.tsx", "src/global.d.ts"],
+  "exclude": ["src/main.ts", "src/preload.ts", "src/utils/capture.ts", "node_modules", "dist"]
+}

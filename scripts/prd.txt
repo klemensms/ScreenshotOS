@@ -1,0 +1,610 @@
+# ScreenshotOS Product Requirements Document
+
+## Overview
+ScreenshotOS is a high-performance, feature-rich screenshot application built primarily for macOS users who need more than basic screen capture functionality. It addresses the growing need for efficient screen capture, editing, organization, and sharing in professional and personal workflows. The application differentiates itself through four core pillars:
+1. Ultra-responsive performance (sub-100ms response time)
+2. Intuitive quick tagging system for immediate visual categorization
+3. Non-destructive editing that preserves original images
+4. Mac-optimized experience with future Windows compatibility
+
+**Development Approach:**
+ScreenshotOS is developed as a single product and codebase. The initial MVP (Minimum Viable Product) will be built directly on the intended long-term project structure and architecture. The MVP will deliver a usable, minimal set of features as early as possible, and all future features will be layered on top of this foundation. There will be no parallel or throwaway development—every feature and improvement will build on the same codebase, ensuring a smooth path from MVP to the full-featured product.
+
+## Goals and Objectives
+
+### Primary Goals
+- Develop a high-performance screenshot tool that feels instantaneous to use
+- Create an intuitive tagging system that makes organizing and finding screenshots effortless
+- Implement non-destructive editing workflow that preserves original images
+- Build a mac-optimized application that leverages native APIs for best performance
+
+### Key Metrics
+- Capture response time under 100ms from hotkey press
+- Area selection overlay appears with zero perceptible delay
+- Editor appears within 300ms of capture completion
+- 95% user satisfaction rate with quick tagging system
+- 90% user retention rate after first month
+
+## Core Features
+
+### Screenshot Capture (PRIORITY: CRITICAL)
+- **Full screen captures**: Instantly capture the entire display with a single hotkey (<100ms response time)
+- **Window captures**: Select and capture only the active window with automatic edge detection
+- **Custom area selection**: Draw a selection to capture specific regions with zero perceptible delay
+- **Multiple monitor support**: Seamlessly capture across multiple displays with intelligent detection
+- **Delayed screenshot timer**: Set a countdown to prepare the screen before capture (3, 5, 10 seconds)
+- **macOS optimization**: Leverage Core Graphics and native APIs for optimal performance
+- **Application detection**: Automatically identify and record the application being captured
+
+### Storage Architecture (PRIORITY: CRITICAL)
+- **Separate file storage**: Store original screenshots as standard image files (PNG, JPEG) without proprietary formats
+- **Edits as sidecar files**: Store all edits, metadata, and tags in separate sidecar files alongside the original images
+- **Cloud sync compatibility**: Enable seamless syncing via third-party services (OneDrive, Dropbox, iCloud) without custom sync implementation
+- **Minimal footprint**: Keep sidecar files small for efficient syncing across devices
+- **Standard formats**: Use open, documented formats for all stored data
+- **Fallback rendering**: Support viewing basic screenshots even without the sidecar files present
+- **Automatic reconnection**: Automatically reconnect sidecar files to their screenshots when both are available
+- **File integrity**: Maintain checksums to verify original images haven't been modified
+
+### Screenshot Metadata (PRIORITY: CRITICAL)
+- **Date and time**: Precise timestamp of when the screenshot was taken
+- **Application information**: Name and version of the application that was captured
+- **Screen/monitor info**: Display identifier, resolution, and scaling factor
+- **Device information**: Computer name, OS version
+- **User context**: Active user account and workspace
+- **Tagging metadata**: All tags applied to the screenshot
+- **Edit history**: All modifications made to the screenshot
+
+### Quick Tagging System (PRIORITY: CRITICAL)
+- **One-click tagging**: Apply predefined tags with visual indicators similar to Bugshooting's red nuclear icon
+- **Predefined tag types**: Bug, error, flags, info, followup, funny tags with distinct visual indicators
+- **Custom tags**: Create custom tags with color coding and custom indicators
+- **Tag visualization**: Visible indicators in the screenshot library for immediate recognition
+- **Quick filtering**: Instantly filter screenshots by tag type to see all screenshots in a category
+- **Immediate tagging**: Tag bar appears instantly after capture for immediate categorization
+- **Keyboard shortcuts**: Apply common tags with customizable hotkeys
+
+### Screenshot Library (PRIORITY: CRITICAL)
+- **Main app interface**: The library view is the primary interface when opening the app
+- **Visual gallery**: Thumbnails of all screenshots with visual tag indicators
+- **Timeline view**: Chronological organization with day/week/month grouping
+- **Grid and list views**: Toggle between visual grid and detailed list views
+- **Sorting options**: Sort by date, name, application, or custom order
+- **Preview functionality**: Quick preview of screenshots without opening editor
+- **Batch selection**: Select multiple screenshots for batch operations
+- **Infinite scroll**: Smooth scrolling through large libraries with virtualization
+- **Context menus**: Right-click/long-press context menus for common actions
+- **Performance optimization**: Fast loading even with thousands of screenshots
+
+### Library Filtering (PRIORITY: CRITICAL)
+- **Single-click filtering**: Filter screenshots by predefined tags with a single click
+- **Application filter**: Select from a dropdown list of all applications that screenshots were taken from
+- **Date/time filtering**: Filter by year, month, day, or time ranges with single-click options
+- **Combined filters**: Apply multiple filters simultaneously (e.g., all bug screenshots from Chrome in 2025)
+- **Filter toggles**: Easily toggle filters on/off with visual indicators
+- **Smart collections**: Automatically group screenshots by common criteria (apps, time periods)
+- **Filter history**: Remember recently used filter combinations
+- **Fast filtering**: All filtering operations complete in <100ms regardless of library size
+
+### Non-Destructive Editing (PRIORITY: HIGH)
+- **Layer-based approach**: All edits stored as separate operations from the original image
+- **Edit preservation**: Ability to modify or remove any edit at any time after saving
+- **Persistent history**: Edit history maintained between sessions
+- **Crop and resize**: Non-destructive adjustments to dimensions and aspect ratio
+- **Annotations**: Add text, arrows, shapes, and highlights as individual editable layers
+- **Blur/pixelate tools**: Protect sensitive information with editable privacy masks
+- **Markup palette**: Customizable colors, line thickness, and font options
+
+### Organization & Storage (PRIORITY: HIGH)
+- **Automatic saving**: Configure default save locations with fallback options
+- **Intelligent naming**: Auto-generate filenames with customizable formats including date/time stamps
+- **Collections system**: Organize screenshots into project-based or categorical collections
+- **Search functionality**: Find screenshots using OCR to detect text within images
+- **Database integration**: Efficient storage and retrieval of screenshots and metadata
+- **Backup capabilities**: Protect against data loss with automatic backup options
+
+### Sharing & Export (PRIORITY: MEDIUM)
+- **Social media integration**: Share directly to major platforms with account linking
+- **Cloud storage integration**: One-click upload to Google Drive, Dropbox, OneDrive, etc.
+- **Clipboard support**: Automatic or optional copying to clipboard for immediate use
+- **Multiple export formats**: Save as PNG (default), JPG, PDF with compression options
+- **URL shortener**: Generate compact, shareable links when uploading to cloud services
+
+### Advanced Features (PRIORITY: LOW)
+- **Scrolling capture**: Automatically capture entire webpages, documents, or scrollable content
+- **OCR text extraction**: Convert text in images to editable text
+- **Workflow automation**: Create macros for repetitive screenshot tasks
+- **Browser extension**: Integration with web browsers for enhanced functionality
+
+### Customizable Shortcuts (PRIORITY: HIGH)
+- **Fully customizable hotkeys**: User-defined keyboard shortcuts for all capture modes and major functions
+- **Hotkey profiles**: Create and switch between multiple shortcut configurations for different workflows
+- **Conflict detection**: Intelligent detection and warning for system-level hotkey conflicts
+- **Multi-key combinations**: Support for complex key combinations (Cmd+Shift+4, etc.)
+- **Global and application-specific shortcuts**: Set different shortcuts based on active application
+- **Import/export**: Share shortcut configurations between devices or users
+- **Discoverability**: Clear interface showing all available shortcuts with visual keyboard layout
+
+## User Experience
+
+### User Personas
+
+1. **Developer Dana**
+   - Uses screenshots to document bugs and UI issues
+   - Needs quick tagging system to categorize different types of issues
+   - Frequently shares screenshots with team members
+   - Requires organization by application, date, and issue type with visual indicators
+
+2. **Content Creator Carlos**
+   - Captures screens for tutorials and guides
+   - Needs high-quality images with clean annotations
+   - Frequently shares to social media and websites
+   - Requires quick editing and export workflow
+
+3. **Professional Paula**
+   - Uses screenshots for work documentation
+   - Needs to redact sensitive information
+   - Shares screenshots in professional communications
+   - Requires reliable cloud backup and search
+
+4. **Student Sam**
+   - Captures lecture slides and study materials
+   - Needs basic annotation for notes
+   - Organizes screenshots by course/subject
+   - Requires simple interface and storage management
+
+5. **Multi-Device Mark**
+   - Works across multiple computers (work desktop, home laptop, tablet)
+   - Needs screenshots and edits to sync seamlessly between devices
+   - Uses OneDrive/Dropbox for file synchronization
+   - Requires access to screenshots with consistent organization across devices
+
+### User Behavior Patterns
+- Users expect capture to be instant with zero latency
+- Users take between 5-50 screenshots daily depending on role
+- 70% of users need to categorize screenshots immediately after capture
+- 60% of users return to modify annotations or crops after initial save
+- 80% of users want to access their screenshot library by category/tag
+- 75% of users filter by application captured or date ranges
+- 65% of users work across multiple devices and need synchronized access
+
+### Key User Flows
+
+1. **High-Performance Capture Flow**
+   - User presses hotkey/launches app (response <100ms)
+   - Selects capture mode (full screen, window, area, etc.)
+   - For area selection, overlay appears instantly (<16ms)
+   - Captures screenshot with visual/audio confirmation
+   - Application information is automatically detected and recorded
+   - Quick tag bar appears for immediate categorization
+   - Edit/save/share options presented
+   - Original image saved as standard format with separate sidecar file for metadata
+
+2. **Library and Filtering Flow**
+   - Library view is the main interface when opening the app
+   - See screenshots organized in a visual gallery with tag indicators and metadata
+   - Click on predefined tag filters (e.g., Flags, Error, Applications) with a single click
+   - Select application filter from dropdown of all captured applications
+   - Choose date/time filter (2023, 2025, etc.) with a single click
+   - View filtered results instantly (<100ms response)
+   - Toggle filters on/off with visual feedback
+   - Select screenshot for viewing, editing, or sharing
+   - Apply tags directly from the library view without opening editor
+
+3. **Non-Destructive Edit Flow**
+   - Open screenshot in editor
+   - Apply modifications as separate layers (crop, annotate, blur)
+   - Preview changes with before/after comparison
+   - Save edit operations to sidecar file while keeping original image untouched
+   - Return later to modify/remove specific edits if needed
+
+4. **Multi-Device Sync Flow**
+   - Take screenshot on device A with standard OneDrive/Dropbox folder as save location
+   - Screenshot and sidecar files automatically sync via third-party cloud service
+   - Open ScreenshotOS on device B with same cloud folder configured
+   - View complete library with all screenshots, tags, and edits intact
+   - Make edits on device B, which update only the small sidecar file
+   - Changes sync back to device A with minimal bandwidth usage
+
+5. **Quick Tagging and Organization Flow**
+   - Tag screenshot immediately after capture with one-click
+   - View screenshot library with visual tag indicators
+   - Filter by specific tags to see categorized screenshots
+   - Create/modify collections for project-based organization
+   - Batch actions for multiple screenshots
+
+6. **Sharing Flow**
+   - Select screenshot(s)
+   - Choose sharing method
+   - Apply optional settings (format, quality)
+   - Receive confirmation and link/success message
+
+### UI/UX Considerations
+- **Zero-latency experience**: Capture and UI interactions feel instantaneous
+- **Minimal interference**: Non-intrusive capture process that doesn't disrupt workflow
+- **Contextual tools**: Show relevant tools based on current action
+- **Progressive disclosure**: Basic features readily accessible, advanced features in expandable panels
+- **Consistent visual language**: Clear icons and controls that follow macOS platform conventions
+- **Responsive feedback**: Visual and audio cues to confirm actions
+- **Accessibility**: Support for keyboard navigation and screen readers
+- **Filter visibility**: Filter status is always clearly visible with toggle controls
+- **Storage transparency**: Clear indication of where files are being saved and synced
+
+## Technical Architecture
+
+### System Components
+1. **High-Performance Capture Engine**
+   - macOS Core Graphics integration for optimal performance
+   - Screen detection and rendering module
+   - Multi-monitor management system
+   - Window identification service
+   - Application detection and metadata collection
+   - Timer and scheduled capture controller
+
+2. **File Storage System**
+   - Original image management (standard formats only)
+   - Sidecar file generation and maintenance
+   - File relationship management
+   - Path monitoring for external changes
+   - File integrity verification
+
+3. **Non-Destructive Editor Module**
+   - Layer-based canvas rendering engine
+   - Edit operation storage in sidecar files
+   - Tool management system
+   - Annotation processor
+   - Serializable edit history
+
+4. **Metadata Management System**
+   - Application detection and recording
+   - Timestamp and context information
+   - Metadata indexing and searching
+   - Automatic metadata enrichment
+   - Metadata storage in sidecar files
+
+5. **Library and Filtering System**
+   - High-performance query engine
+   - Tag-based filter implementation
+   - Application-based filter implementation
+   - Date/time-based filter implementation
+   - Combined filter processing
+   - Filter state persistence
+
+6. **Storage Manager**
+   - File system integration
+   - Collections and tags database
+   - Metadata indexer
+   - Search engine with OCR capability
+   - Edit history persistence
+   - Cloud storage path monitoring
+
+7. **Quick Tagging System**
+   - Tag definition and management
+   - Visual indicator rendering
+   - One-click tag application interface
+   - Tag filtering and organization
+   - Tag statistics and usage tracking
+
+8. **Sharing Service**
+   - API integration layer for third-party services
+   - Authentication manager
+   - Export processor with/without edits
+   - Link generation and management
+
+9. **Settings Controller**
+   - Preference manager
+   - Hotkey registration and handling
+   - Profile system for different use cases
+   - Performance optimization settings
+   - Storage location configuration
+
+### Data Models
+
+1. **Screenshot Model**
+   - Unique identifier
+   - Original image file path (standard PNG/JPEG format)
+   - Sidecar file path
+   - Capture timestamp (precise date and time)
+   - Source application information (name, version, bundle identifier)
+   - Screen/monitor information
+   - Source information (monitor, window, etc.)
+   - Metadata (dimensions, color depth)
+   - Reference to edit operations (stored in sidecar file)
+   - Tags and collections references
+
+2. **Sidecar File Model**
+   - Linked image identifier
+   - Checksum of original image for integrity verification
+   - Edit operations (serialized)
+   - Metadata (serialized)
+   - Tags and collections (serialized)
+   - Version information
+   - Last modified timestamp
+
+3. **Application Model**
+   - Application name and bundle identifier
+   - Application icon
+   - Version information
+   - List of associated screenshots
+   - Usage statistics
+
+4. **Edit Operation Model**
+   - Operation type (crop, annotation, blur, etc.)
+   - Parameters specific to operation type
+   - Creation and modification timestamps
+   - Visibility state
+   - Layer order/z-index
+
+5. **Tag Model**
+   - Name and unique identifier
+   - Color and visual indicator
+   - Associated screenshots
+   - Is predefined flag
+   - Usage statistics
+
+6. **Collection Model**
+   - Name and description
+   - Associated screenshots
+   - Creation and modification dates
+   - Sharing preferences
+
+7. **Filter Model**
+   - Filter type (tag, application, date, etc.)
+   - Filter parameters
+   - Associated UI elements
+   - Last used timestamp
+   - Usage frequency
+
+8. **User Preferences Model**
+   - Default save locations
+   - Hotkey mappings
+   - Interface preferences
+   - Performance settings
+   - Connected services
+   - Default filter preferences
+   - Cloud storage paths
+
+### Storage Architecture Details
+
+1. **File Organization**
+   - Original screenshots stored as standard PNG/JPEG files in user-configurable location
+   - Sidecar files (XML/JSON) stored alongside original images with matching filename + extension
+   - Database index for fast searching maintained in user's application data folder
+
+2. **Sidecar File Format**
+   - Compact, human-readable JSON or XML format
+   - Contains all metadata, tags, and edit operations
+   - Version information for backward compatibility
+   - Relative paths for cross-device compatibility
+   - Image checksum for integrity verification
+
+3. **Sync Compatibility**
+   - No proprietary sync implementation required
+   - Compatible with any file-based sync service (OneDrive, Dropbox, iCloud, Google Drive)
+   - Small sidecar files enable fast syncing of edits
+   - Conflict resolution for simultaneous edits on multiple devices
+   - Ability to work with partial syncs (only some files available)
+
+4. **Fallback Behavior**
+   - Ability to view and work with original image if sidecar file is unavailable
+   - Automatic reconnection when missing sidecar file becomes available
+   - Recovery tools for repairing disconnected files
+
+### Platform Architecture
+- **Platform Abstraction Layer**: Interfaces for platform-specific functionality
+- **macOS Implementation Layer**: Core Graphics, NSWorkspace integration
+- **Common Core**: Platform-agnostic business logic
+- **Factory Pattern**: For instantiating platform-specific components
+
+### APIs and Integrations
+- **Operating System APIs**: For screen capture, window management, and clipboard
+  - macOS: Core Graphics, NSWorkspace, Core Animation
+  - Future Windows: Windows API, DirectX/GDI+
+- **Application Detection APIs**: For identifying foreground applications
+  - macOS: NSWorkspace, CGWindowListCopyWindowInfo
+  - Future Windows: GetForegroundWindow, GetWindowText
+- **File System APIs**: For monitoring external changes to files
+  - macOS: FSEvents
+  - Future Windows: FileSystemWatcher
+- **Cloud Storage APIs**: Google Drive, Dropbox, OneDrive for backup and sharing
+- **Social Media APIs**: Twitter, Facebook, LinkedIn for direct sharing
+- **OCR Services**: For text extraction and searchability
+
+### Performance Requirements
+- Capture response time: <100ms from hotkey to completion
+- Area selection appearance: Zero perceptible delay (<16ms)
+- Editor appearance: <300ms after capture
+- UI interactions: <50ms response time
+- Tag application: <100ms from click to visual confirmation
+- Filter application: <100ms from click to filtered results
+- Application detection: <50ms to identify active application
+- Sidecar file size: <100KB for typical edits
+- Sidecar file write time: <50ms
+- Search performance: <1s for library of 1000+ screenshots
+- Storage efficiency: Optimized file sizes without quality loss
+
+### Infrastructure Requirements
+- **Local Storage**: Efficient image storage with indexing
+- **Third-party Cloud Sync**: Compatibility with OneDrive, Dropbox, Google Drive, iCloud
+- **Update System**: In-app updates for new features and fixes
+- **Analytics**: Optional usage analytics for improvement (opt-in)
+
+## Development Roadmap
+
+### Phase 1: MVP - Foundation and Performance Focus
+- High-performance screen capture engine optimized for macOS (<100ms)
+- Separate file storage architecture with original images and sidecar files
+- Application detection and metadata recording
+- Quick tagging system with visual indicators and one-click application
+- Basic library with tag, application, and date filtering
+- Basic non-destructive editor with essential tools
+- Local saving with automatic naming
+- Clipboard integration
+- Third-party cloud service compatibility testing
+- Essential settings (save location, hotkeys, image format)
+
+### Phase 2: Enhanced Organization & Editing
+- Complete tagging and filtering system with combined filters
+- Advanced library view with customizable layouts
+- Collections for project-based organization
+- Enhanced non-destructive annotation tools
+- Blur/pixelate tools for sensitive information
+- Multiple monitor support
+- Persistent edit history between sessions
+- Multi-device sync reliability improvements
+
+### Phase 3: Sharing & Integration
+- Cloud storage integration
+- Social media sharing
+- Multiple export formats with/without edits
+- URL shortener for shared links
+- Delayed capture timer
+- Copy to clipboard enhancements
+
+### Phase 4: Advanced Features & Cross-Platform
+- Scrolling screenshot capability
+- Advanced OCR features
+- Hotkey customization
+- Workflow automation
+- Initial Windows support with performance parity
+- Browser extension integration
+
+## Logical Dependency Chain
+
+### Foundation Layer
+1. High-performance macOS screen capture engine (core functionality)
+2. Separate file storage architecture (original images + sidecar files)
+3. Application detection and metadata collection
+4. Non-destructive image storage system
+5. Basic UI framework optimized for macOS
+6. Quick tagging system infrastructure
+
+### User-Facing Milestone 1
+1. Instant capture interface with area selection
+2. Automatic application detection and metadata recording
+3. Quick tag bar for immediate categorization
+4. Library view with basic tag, application, and date filtering
+5. Simple non-destructive editor with essential tools
+6. Local saving with basic organization
+7. Clipboard integration
+8. Basic third-party cloud sync compatibility
+
+### Enhancement Track 1: Capture & Performance
+1. Optimized area selection with zero latency
+2. Enhanced application detection accuracy
+3. Window detection and capture
+4. Multiple monitor support
+5. Delay timer implementation
+6. Performance benchmarking and optimization
+
+### Enhancement Track 2: Non-Destructive Editing
+1. Enhanced annotation tools as individual layers
+2. Blur/redaction capabilities
+3. Persistent undo/redo across sessions
+4. Image adjustment options
+5. Layer management interface
+6. Optimized sidecar file format and sync
+
+### Enhancement Track 3: Organization
+1. Enhanced tagging system with visual indicators
+2. Advanced filtering by multiple tag criteria
+3. Application-specific filtering enhancements
+4. Date/time filtering enhancements
+5. Collections for project management
+6. OCR integration
+7. Comprehensive metadata management
+
+### Enhancement Track 4: Sharing
+1. Cloud service authentication
+2. Upload functionality with/without edits
+3. Link generation
+4. Social media integration
+5. Export format options
+
+### Advanced Features Layer
+1. Scrolling capture implementation
+2. Advanced hotkey management system
+3. Automation framework
+4. Windows platform support
+5. Extension API development
+
+## Risks and Mitigations
+
+### Technical Challenges
+- **Ultra-Fast Capture Performance**: 
+  - Risk: Achieving <100ms response consistently across hardware variations
+  - Mitigation: Leverage native macOS APIs, implement efficient memory management, performance profiling
+
+- **Sidecar File Sync Issues**:
+  - Risk: Conflicts or corruption when syncing between multiple devices
+  - Mitigation: Implement robust versioning, checksums, conflict resolution, and recovery mechanisms
+
+- **File Relationship Management**:
+  - Risk: Sidecar files becoming disconnected from original images
+  - Mitigation: Use multiple identifiers (filename, image hash, UUID) to maintain relationships, automated repair tools
+
+- **Application Detection Accuracy**:
+  - Risk: Incorrectly identifying applications in complex window arrangements
+  - Mitigation: Use multiple methods for application detection, implement confidence scoring system
+
+- **Non-Destructive Editing Complexity**: 
+  - Risk: Managing complex edit history without performance degradation
+  - Mitigation: Optimize serialization format, implement lazy loading of edit operations
+
+- **Filtering Performance**:
+  - Risk: Filter operations becoming slow with large screenshot libraries
+  - Mitigation: Implement efficient indexing, query optimization, and caching strategies
+
+- **Platform Abstraction**: 
+  - Risk: Maintaining performance while abstracting platform-specific code
+  - Mitigation: Careful API design, factory patterns, comprehensive testing across platforms
+
+### MVP Considerations
+- **Feature Prioritization**: Focus on performance, file architecture, quick tagging, application metadata, and filtering first
+- **User Feedback Loop**: Implement telemetry and feedback mechanisms early to guide development
+- **Incremental Delivery**: Release usable features in logical groups rather than waiting for full completion
+
+### Resource Constraints
+- **Performance vs. Features Balance**: 
+  - Risk: Feature creep impacting core performance metrics
+  - Mitigation: Strict performance benchmarking, feature gating based on performance impact
+
+- **Storage Management**: 
+  - Risk: Large metadata and edit histories consuming excessive storage
+  - Mitigation: Implement intelligent compression and cleanup options
+
+- **Third-Party Dependencies**: 
+  - Risk: Reliance on external libraries impacting performance or maintenance
+  - Mitigation: Carefully evaluate dependencies, prefer native solutions when possible
+
+## Appendix
+
+### Competitive Analysis
+- **Popular alternatives**: Snagit, Lightshot, Greenshot, ShareX, Bugshooting
+- **Key differentiators**: 
+  - macOS-optimized performance (<100ms vs. typical 300-500ms)
+  - Quick tagging with visual indicators (similar to Bugshooting but more user-friendly)
+  - Comprehensive metadata collection including application detection
+  - One-click filtering by tags, applications, and dates
+  - Truly non-destructive editing with separate file storage
+  - Third-party cloud sync compatibility without proprietary sync solution
+  - Mac-native experience with future Windows compatibility
+
+### User Research Findings
+- Users report frustration with latency in existing tools
+- Quick tagging is highly valued for organization but poorly implemented in most tools
+- Application and date filtering are used by over 80% of power users
+- Multi-device usage requires friction-free syncing via familiar cloud tools
+- Non-destructive editing is desired but rarely available in screenshot tools
+- macOS users expect native performance and integration
+
+### Performance Metrics
+- Capture speed: < 100ms from hotkey to completion (vs. industry average 300-500ms)
+- Area selection appearance: Zero perceptible delay (<16ms)
+- Tag application: <100ms from click to visual confirmation
+- Filter application: <100ms from selection to filtered results
+- Sidecar file size: <100KB for typical edits (vs. 1MB+ for complete file)
+- Sync time: 95% faster than syncing complete image files with embedded data
+- Search performance: < 1s for library of 1000+ screenshots
+- Editor responsiveness: No perceptible lag during annotation
+- Storage efficiency: Optimized file sizes without quality loss
