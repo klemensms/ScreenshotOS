@@ -1,0 +1,490 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Setup Core Project Structure",
+      "description": "Initialize the project repository with basic architecture, folder structure, and essential dependencies for the ScreenshotOS application.",
+      "details": "1. Create a new repository for ScreenshotOS\n2. Set up the basic project structure with folders for components:\n   - src/\n     - capture/\n     - editor/\n     - storage/\n     - sharing/\n     - settings/\n     - ui/\n3. Initialize package.json with essential dependencies\n4. Configure build system (webpack/vite)\n5. Set up linting and code formatting\n6. Create README.md with project overview\n7. Implement basic application entry point\n8. Configure cross-platform compatibility settings\n\nTechnology stack should include:\n- Electron for cross-platform desktop application\n- React for UI components\n- TypeScript for type safety\n- SQLite for local database storage",
+      "testStrategy": "1. Verify project builds successfully\n2. Ensure application launches with minimal UI\n3. Confirm cross-platform compatibility (Windows, macOS, Linux)\n4. Validate folder structure follows best practices\n5. Run linting checks to ensure code quality standards",
+      "priority": "high",
+      "dependencies": [],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Initialize Repository and Folder Structure",
+          "description": "Create the Git repository and establish the basic folder structure for the project following best practices for the chosen technology stack.",
+          "dependencies": [],
+          "details": "1. Initialize Git repository with appropriate .gitignore and .gitattributes files\n2. Create main source directory structure (src/, tests/, docs/, etc.)\n3. Add README.md with project overview and setup instructions\n4. Configure branch protection rules for main/master branch\n5. Establish folder hierarchy for components, utilities, assets, and configuration\n6. Add placeholder files to maintain folder structure in Git\n\nAcceptance Criteria:\n- Repository is accessible to all team members\n- Folder structure follows industry standards for the chosen tech stack\n- README contains clear project description and setup instructions\n- Empty directories are properly tracked in version control",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Configure Package Management and Dependencies",
+          "description": "Set up package management configuration and define core dependencies required for the project.",
+          "dependencies": [
+            1
+          ],
+          "details": "1. Create package.json/requirements.txt/pom.xml as appropriate for the technology stack\n2. Define core dependencies with specific version constraints\n3. Configure dependency resolution settings\n4. Set up lockfiles for deterministic builds\n5. Document dependency update strategy\n6. Configure private registry access if needed\n\nAcceptance Criteria:\n- Dependencies can be installed with a single command\n- All core dependencies are properly versioned\n- Development dependencies are separated from runtime dependencies\n- Package metadata (name, version, description, license) is complete\n- Dependency installation works on all target platforms",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Set Up Build System and Development Tooling",
+          "description": "Configure the build system, compilation process, and development tools required for the project.",
+          "dependencies": [
+            2
+          ],
+          "details": "1. Configure build tool (webpack, gradle, make, etc.) with appropriate settings\n2. Set up compilation/transpilation process if needed\n3. Configure linting tools with project-specific rules\n4. Set up code formatting tools and configuration\n5. Configure testing framework and test runners\n6. Create build scripts for development and production environments\n7. Set up source maps for debugging\n\nAcceptance Criteria:\n- Build process completes successfully with no errors\n- Development build includes debugging capabilities\n- Production build produces optimized output\n- Linting and formatting tools run with consistent rules\n- Build artifacts are generated in the correct location\n- Build scripts are documented in README",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Cross-Platform Compatibility Setup",
+          "description": "Configure the project to ensure compatibility across all target platforms and environments.",
+          "dependencies": [
+            3
+          ],
+          "details": "1. Define target platforms and minimum version requirements\n2. Configure environment-specific settings and variables\n3. Set up platform detection and conditional code paths\n4. Create platform-specific build configurations\n5. Implement path normalization for cross-platform file handling\n6. Configure CI/CD to test on all target platforms\n7. Document platform-specific setup requirements\n\nAcceptance Criteria:\n- Project builds and runs on all target platforms (Windows, macOS, Linux, etc.)\n- Environment variables are properly handled across platforms\n- File paths work correctly on all operating systems\n- Platform-specific code is properly isolated and documented\n- CI/CD pipeline validates cross-platform compatibility\n- Setup instructions include platform-specific considerations",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Implement Basic Screen Capture Engine",
+      "description": "Develop the core screen capture functionality to support full screen, active window, and custom area selection captures, with initial focus on optimizing for macOS.",
+      "status": "pending",
+      "dependencies": [
+        1
+      ],
+      "priority": "high",
+      "details": "1. Create CaptureEngine class with methods for different capture types:\n   - captureFullScreen()\n   - captureActiveWindow()\n   - captureSelectedArea()\n\n2. Implement screen detection using Electron's desktopCapturer API\n3. Create selection overlay for custom area capture with resizable bounds, ensuring zero perceptible delay when triggered by hotkey\n4. Implement window detection and edge recognition for window captures\n5. Add basic error handling for capture failures\n6. Optimize capture process for performance (< 100ms response time), prioritizing macOS\n7. Return captured image data in standard format (PNG buffer)\n8. Leverage Core Graphics APIs on macOS for optimal performance\n\nCode example for captureFullScreen():\n```typescript\nasync function captureFullScreen(): Promise<Buffer> {\n  const sources = await desktopCapturer.getSources({ types: ['screen'] });\n  const mainSource = sources[0]; // Primary display\n  const stream = await navigator.mediaDevices.getUserMedia({\n    audio: false,\n    video: {\n      mandatory: {\n        chromeMediaSource: 'desktop',\n        chromeMediaSourceId: mainSource.id\n      }\n    }\n  });\n  // Process stream to image buffer\n  // ...\n  return imageBuffer;\n}\n```",
+      "testStrategy": "1. Unit tests for each capture method\n2. Performance testing to ensure capture speed meets < 100ms requirement on macOS\n3. Integration tests with mock display configurations\n4. Test capture quality and accuracy\n5. Verify error handling with simulated failure scenarios\n6. Test on different screen resolutions and pixel densities\n7. Measure and optimize UI response time for area selection overlay\n8. Benchmark Core Graphics performance on various macOS hardware configurations",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Full Screen Capture Functionality",
+          "description": "Develop the core functionality to capture the entire screen with initial focus on macOS optimization.",
+          "dependencies": [],
+          "details": "Implement platform-specific APIs with priority on CoreGraphics for macOS to capture full screen content. Optimize specifically for macOS to achieve <100ms capture time. Ensure image data is properly converted to a standard format (e.g., RGBA bitmap). Include multi-monitor support with proper monitor identification. Test with various screen resolutions, color depths, and refresh rates on macOS hardware.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Develop Active Window Capture",
+          "description": "Create functionality to identify and capture only the currently active window, optimized for macOS.",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement window handle detection to identify the foreground window on macOS using CoreGraphics and Accessibility APIs. Use platform APIs to determine window boundaries and capture only that region. Handle window decorations consistently. Implement proper DPI awareness for high-resolution displays including Retina. Test with various application types including standard, fullscreen, and borderless windows on macOS.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Create Custom Area Selection UI",
+          "description": "Develop an overlay UI that allows users to select a custom region of the screen for capture with zero perceptible delay.",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement a semi-transparent overlay that displays over the screen with zero perceptible delay when triggered by hotkey. Pre-load and optimize the overlay to appear instantly. Create mouse event handling for drawing selection rectangle. Add visual feedback (dimensions, magnifier) during selection. Ensure the overlay works across multiple monitors. Implement keyboard shortcuts for precise adjustments. Test response time specifically on macOS to ensure instantaneous appearance.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Optimize Capture Performance for macOS",
+          "description": "Enhance the capture engine for optimal performance on macOS hardware configurations.",
+          "dependencies": [
+            1,
+            2,
+            3
+          ],
+          "details": "Leverage Core Graphics APIs for maximum performance on macOS. Implement memory pooling to reduce allocations during capture. Add threading model to prevent UI freezing during capture. Optimize for hardware acceleration on Apple Silicon and Intel Macs. Implement frame differencing to reduce processing when capturing video. Benchmark on various macOS hardware configurations to ensure <100ms capture time. Profile memory usage to prevent leaks during extended use.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Implement Error Handling and Edge Cases",
+          "description": "Develop robust error handling for the capture engine and address edge cases on macOS.",
+          "dependencies": [
+            1,
+            2,
+            3,
+            4
+          ],
+          "details": "Create comprehensive error reporting system with meaningful user feedback. Handle permission issues specific to macOS (screen recording permissions, accessibility permissions). Implement fallback methods when primary capture APIs fail. Address edge cases: screen resolution changes during capture, disconnected monitors, macOS sleep/wake transitions, secure windows that block capture. Create automated tests for various failure scenarios and verify graceful degradation on macOS.",
+          "status": "pending"
+        },
+        {
+          "id": 6,
+          "title": "Optimize Area Selection Trigger Response Time",
+          "description": "Ensure the area selection overlay appears with zero perceptible delay when triggered by hotkey.",
+          "dependencies": [
+            3
+          ],
+          "details": "Pre-initialize selection overlay components at application startup. Implement efficient event listeners for hotkey detection. Minimize render operations when displaying the overlay. Use macOS-specific optimizations for window creation and transparency. Measure and optimize the time between hotkey press and overlay appearance. Target <16ms (one frame) response time for perceived instantaneous reaction. Test with various system loads to ensure consistent performance.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Develop Basic Image Storage System",
+      "description": "Create a storage system to save screenshots locally with configurable save locations and automatic naming conventions.",
+      "details": "1. Create StorageManager class to handle saving and loading screenshots\n2. Implement configurable default save locations with fallback options\n3. Create intelligent naming system with customizable formats including date/time stamps\n4. Develop file system integration using Node.js fs module\n5. Add support for multiple image formats (PNG default, JPG optional)\n6. Implement basic metadata storage for each screenshot\n7. Create database schema for screenshot records\n\nDatabase Schema:\n```sql\nCREATE TABLE screenshots (\n  id TEXT PRIMARY KEY,\n  filename TEXT NOT NULL,\n  path TEXT NOT NULL,\n  timestamp INTEGER NOT NULL,\n  width INTEGER NOT NULL,\n  height INTEGER NOT NULL,\n  format TEXT NOT NULL,\n  source TEXT,\n  metadata TEXT\n);\n```\n\nNaming convention implementation:\n```typescript\nfunction generateFilename(template: string): string {\n  const date = new Date();\n  return template\n    .replace('{date}', date.toISOString().split('T')[0])\n    .replace('{time}', date.toTimeString().split(' ')[0].replace(/:/g, '-'))\n    .replace('{timestamp}', Date.now().toString())\n    .replace('{random}', Math.random().toString(36).substring(2, 8));\n}\n```",
+      "testStrategy": "1. Unit tests for file saving and loading\n2. Verify naming convention functionality with various templates\n3. Test file system permissions and error handling\n4. Validate database operations (insert, query, update)\n5. Performance testing for large images\n6. Test file format conversions\n7. Verify metadata persistence",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Storage Manager with File System Integration",
+          "description": "Create a storage manager class that handles file system operations for image storage, including directory creation, file writing, and error handling.",
+          "dependencies": [],
+          "details": "Implement StorageManager class with methods: saveImage(imageData, format), deleteImage(imageId), getImagePath(imageId). Create directory structure with configurable root path. Handle file system errors and implement retry mechanism. Support common image formats (PNG, JPG, WEBP). Implement disk space checking before writes. Add logging for all file operations. Validation criteria: Successfully saves files to disk, handles duplicate filenames, properly manages file permissions, and gracefully handles I/O errors.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Develop Naming Convention System with Templating",
+          "description": "Create a flexible naming system that generates consistent filenames using configurable templates based on metadata and timestamps.",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement NameGenerator class with template parsing. Support variables like {timestamp}, {user}, {app}, {random}, {counter}. Create escaping mechanism for special characters. Implement collision detection and resolution. Add validation to prevent invalid filenames. Create unit tests for various template combinations. Validation criteria: Generates unique, filesystem-safe filenames, properly applies templates, handles special characters, and resolves naming conflicts.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Design Database Schema and Implement CRUD Operations",
+          "description": "Create database schema for image storage and implement Create, Read, Update, Delete operations with proper transaction handling.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Design tables: images (id, filename, path, size, format, created_at, updated_at), image_metadata (image_id, key, value). Implement ImageRepository class with methods: createImage(), getImage(id), updateImage(id, data), deleteImage(id), queryImages(filters). Add transaction support for operations affecting multiple tables. Implement connection pooling. Create database migration scripts. Add indexing for common query patterns. Validation criteria: Successfully performs all CRUD operations, maintains referential integrity, handles concurrent access, and properly manages transactions.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Metadata Management for Screenshots",
+          "description": "Create a system to extract, store, and query metadata from screenshots, including source application, screen dimensions, and user context.",
+          "dependencies": [
+            3
+          ],
+          "details": "Implement MetadataExtractor class to parse image headers. Create MetadataManager to store/retrieve metadata from database. Support metadata types: dimensions, color depth, source application, user info, device info, timestamp. Implement metadata search functionality with filtering. Add validation for metadata integrity. Create indexing strategy for efficient metadata queries. Implement batch metadata operations. Validation criteria: Correctly extracts metadata from various image formats, efficiently stores and retrieves metadata, supports complex metadata queries, and maintains metadata integrity during image updates.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Create Basic UI Framework and Capture Interface",
+      "description": "Develop the minimal user interface for the application, including the main window, system tray integration, and basic capture controls.",
+      "details": "1. Design and implement main application window\n2. Create system tray icon and menu\n3. Implement hotkey registration for quick capture\n4. Design capture mode selection interface (full screen, window, area)\n5. Create overlay UI for area selection with handles\n6. Implement minimal capture feedback (visual/audio cues)\n7. Add basic settings panel for capture preferences\n\nUI Components to create:\n- MainWindow: Application container with navigation\n- SystemTray: Icon and context menu for quick actions\n- CaptureOverlay: Transparent window for selection\n- CaptureControls: Buttons for capture types\n- SettingsPanel: Basic configuration options\n\nHotkey registration example:\n```typescript\nimport { globalShortcut } from 'electron';\n\nfunction registerHotkeys() {\n  // Full screen capture\n  globalShortcut.register('CommandOrControl+Shift+3', () => {\n    captureEngine.captureFullScreen();\n  });\n  \n  // Area selection capture\n  globalShortcut.register('CommandOrControl+Shift+4', () => {\n    captureEngine.captureSelectedArea();\n  });\n  \n  // Window capture\n  globalShortcut.register('CommandOrControl+Shift+5', () => {\n    captureEngine.captureActiveWindow();\n  });\n}\n```",
+      "testStrategy": "1. UI component testing with React Testing Library\n2. Verify hotkey registration and handling\n3. Test system tray integration\n4. Usability testing for capture interface\n5. Verify visual feedback mechanisms\n6. Test keyboard navigation and accessibility\n7. Cross-platform UI consistency checks",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Main Application Window and Component Architecture",
+          "description": "Design and implement the main application window with a modular component architecture that supports all required functionality.",
+          "dependencies": [],
+          "details": "Create a responsive main window using Electron's BrowserWindow. Implement a component-based architecture with React for UI elements. Design should include areas for settings, capture history, and editing options. Ensure consistent styling across platforms using CSS modules or styled-components. Implement dark/light theme support. Create reusable UI components (buttons, dropdowns, modals) with proper state management. Document component API for future extensions.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Develop System Tray Integration and Context Menu",
+          "description": "Implement platform-specific system tray integration with appropriate icons and context menu functionality.",
+          "dependencies": [
+            1
+          ],
+          "details": "Use Electron's Tray API to add application icon to system tray. Create platform-specific icons (16x16, 32x32) for Windows, macOS, and Linux. Implement context menu with options for quick capture, show/hide app, preferences, and exit. Handle platform-specific behaviors (left/right click differences between Windows and macOS). Ensure tray persists when main window is closed. Add visual feedback when capture is in progress via tray icon. Test on all target platforms for native look and feel.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Create Capture Overlay and Selection UI",
+          "description": "Develop a transparent overlay system for screen capture with interactive selection tools and visual feedback.",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement transparent fullscreen overlay using Electron's transparent BrowserWindow. Create selection tools for rectangle, freeform, and window selection modes. Add visual guides (dimensions, magnifier) during selection process. Implement handles for resizing selection area. Add annotation tools that appear after selection (arrows, text, highlights). Ensure proper behavior across multiple monitors with different DPI settings. Optimize performance to prevent lag during selection drawing. Include keyboard shortcuts for precise adjustments.",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Hotkey Registration and Management",
+          "description": "Create a system for registering, managing, and responding to global hotkeys across different platforms.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Use Electron's globalShortcut module to register system-wide hotkeys. Implement configurable hotkeys for screen capture, region capture, and window capture. Create UI for customizing hotkey combinations with conflict detection. Handle platform-specific limitations and edge cases (macOS permissions, Linux desktop environments). Implement fallback mechanisms when preferred hotkeys are unavailable. Add visual and audio feedback when hotkeys are triggered. Create a hotkey service that other components can subscribe to. Ensure hotkeys work even when application is not in focus.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Implement Basic Screenshot Editor",
+      "description": "Create a simple editor with essential tools for cropping and basic annotations to allow users to modify captured screenshots.",
+      "details": "1. Design and implement editor canvas component\n2. Create tool selection interface\n3. Implement crop functionality with aspect ratio options\n4. Add basic annotation tools:\n   - Pen/brush tool\n   - Text tool\n   - Basic shapes (rectangle, circle, arrow)\n   - Simple color picker\n5. Implement undo/redo functionality\n6. Create save/cancel actions\n7. Add keyboard shortcuts for common editing actions\n\nEditor component structure:\n```typescript\ninterface EditorProps {\n  imageData: ImageData;\n  onSave: (editedImage: ImageData) => void;\n  onCancel: () => void;\n}\n\nconst Editor: React.FC<EditorProps> = ({ imageData, onSave, onCancel }) => {\n  const [selectedTool, setSelectedTool] = useState<Tool>('pen');\n  const [color, setColor] = useState<string>('#ff0000');\n  const [lineWidth, setLineWidth] = useState<number>(2);\n  const [history, setHistory] = useState<ImageData[]>([imageData]);\n  const [historyIndex, setHistoryIndex] = useState<number>(0);\n  \n  // Tool handlers, canvas setup, history management\n  // ...\n  \n  return (\n    <div className=\"editor\">\n      <ToolBar \n        selectedTool={selectedTool} \n        onSelectTool={setSelectedTool} \n        color={color}\n        onColorChange={setColor}\n        lineWidth={lineWidth}\n        onLineWidthChange={setLineWidth}\n      />\n      <Canvas \n        imageData={history[historyIndex]}\n        tool={selectedTool}\n        color={color}\n        lineWidth={lineWidth}\n        onChange={handleCanvasChange}\n      />\n      <ActionBar\n        canUndo={historyIndex > 0}\n        canRedo={historyIndex < history.length - 1}\n        onUndo={handleUndo}\n        onRedo={handleRedo}\n        onSave={() => onSave(history[historyIndex])}\n        onCancel={onCancel}\n      />\n    </div>\n  );\n};\n```",
+      "testStrategy": "1. Unit tests for each editing tool\n2. Test undo/redo functionality\n3. Verify image manipulation accuracy\n4. Test performance with large images\n5. Usability testing for tool interactions\n6. Verify keyboard shortcuts\n7. Test save/cancel workflows\n8. Validate image quality preservation",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        3,
+        4
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Editor Canvas with Rendering Pipeline",
+          "description": "Create the foundational canvas component that will display and handle screenshot editing operations with an optimized rendering pipeline.",
+          "dependencies": [],
+          "details": "Implement a canvas component using HTML5 Canvas API or WebGL for better performance. Create a layered architecture with separate layers for the base image, annotations, and UI elements. Implement efficient rendering pipeline with dirty region tracking to avoid full redraws. Ensure the canvas handles different image sizes and resolutions with proper scaling. Add support for high-DPI displays with appropriate pixel ratio adjustments. Performance considerations: Use requestAnimationFrame for smooth rendering, implement image downsampling for preview during operations, and optimize memory usage for large images. Testing criteria: Verify rendering performance with large images (>4000px), test canvas behavior across different screen sizes, and ensure proper scaling without quality loss.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Implement Tool Selection and State Management",
+          "description": "Create a robust state management system for the editor with tool selection UI and application-wide state handling.",
+          "dependencies": [
+            1
+          ],
+          "details": "Design a state management architecture using a pattern like Redux or Context API to maintain editor state. Implement tool selection UI with visual feedback for active tools. Create a central state store containing current tool, tool settings, canvas state, and history information. Implement event handling system to connect user interactions with state changes. Add keyboard shortcuts for common operations and tool switching. Performance considerations: Minimize state updates to prevent unnecessary re-renders, use memoization for computed values, and implement efficient event delegation. Testing criteria: Verify state consistency across complex operations, test keyboard shortcuts in different browser environments, and ensure proper state isolation between multiple editor instances if applicable.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Implement Basic Annotation Tools",
+          "description": "Develop core annotation tools including pen/brush, text insertion, and basic shapes (rectangle, circle, arrow).",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement pen/brush tool with customizable stroke width, color, and opacity. Create text annotation tool with font selection, size adjustment, and positioning capabilities. Add shape tools for rectangles, circles, and arrows with fill/stroke options. Implement selection and manipulation of existing annotations. Ensure all tools work with both mouse and touch inputs. Performance considerations: Use path simplification for freehand drawing, implement efficient hit detection for selection, and optimize text rendering with caching. Testing criteria: Test drawing precision at different zoom levels, verify text rendering quality, and ensure consistent behavior across different input methods (mouse, touch, stylus).",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Implement Crop Functionality with Aspect Ratio Support",
+          "description": "Create a crop tool that allows users to select regions of the image with optional aspect ratio constraints.",
+          "dependencies": [
+            1,
+            2
+          ],
+          "details": "Implement crop selection UI with draggable handles and visible overlay for non-selected areas. Add support for predefined aspect ratios (1:1, 16:9, 4:3, etc.) and custom ratio input. Create preview functionality to show crop result before applying. Implement the actual cropping operation that modifies the base image. Add rotation capability to straighten images before cropping. Performance considerations: Use image slicing rather than creating new images when possible, implement efficient transform calculations, and optimize the preview rendering. Testing criteria: Test crop accuracy with pixel-perfect measurements, verify aspect ratio constraints are maintained, and ensure the crop handles work correctly at canvas boundaries.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Implement History Management for Undo/Redo",
+          "description": "Create a comprehensive history system that tracks all editor operations and enables undo/redo functionality.",
+          "dependencies": [
+            2,
+            3,
+            4
+          ],
+          "details": "Design a command pattern implementation to encapsulate all editor operations. Create a history stack that stores operations with their parameters and results. Implement undo/redo methods that traverse the history stack and reapply or reverse operations. Add UI controls and keyboard shortcuts (Ctrl+Z, Ctrl+Y) for history navigation. Implement state snapshots for complex operations to improve performance. Performance considerations: Use memory-efficient representations of operations, implement operation batching for related actions, and add garbage collection for old history items when stack grows too large. Testing criteria: Verify correct state restoration after multiple undo/redo operations, test with complex sequences of different tools, and ensure performance remains stable with large history stacks.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Implement Settings Persistence System",
+      "description": "Create a system to store and retrieve user preferences and application settings across sessions.",
+      "details": "1. Design settings data model\n2. Implement SettingsManager class for managing preferences\n3. Create storage mechanism for settings persistence\n4. Implement default settings configuration\n5. Add methods for getting/setting individual preferences\n6. Create settings migration system for updates\n7. Add settings validation\n\nSettings data model:\n```typescript\ninterface UserPreferences {\n  capture: {\n    defaultMode: 'fullscreen' | 'window' | 'area';\n    includeMouseCursor: boolean;\n    delayTimerOptions: number[];\n    defaultDelayTimer: number;\n  };\n  storage: {\n    defaultSaveLocation: string;\n    defaultNamingTemplate: string;\n    defaultImageFormat: 'png' | 'jpg';\n    jpgQuality: number;\n  };\n  editor: {\n    defaultColors: string[];\n    defaultLineThickness: number;\n    defaultFont: string;\n    defaultFontSize: number;\n  };\n  hotkeys: {\n    fullScreenCapture: string;\n    windowCapture: string;\n    areaCapture: string;\n    delayedCapture: string;\n  };\n  general: {\n    startAtLogin: boolean;\n    showNotifications: boolean;\n    analyticsEnabled: boolean;\n  };\n}\n```\n\nSettings manager implementation:\n```typescript\nclass SettingsManager {\n  private store: ElectronStore<UserPreferences>;\n  private defaults: UserPreferences = { /* default values */ };\n  \n  constructor() {\n    this.store = new ElectronStore<UserPreferences>({\n      defaults: this.defaults,\n      name: 'user-preferences'\n    });\n  }\n  \n  get<K extends keyof UserPreferences>(key: K): UserPreferences[K] {\n    return this.store.get(key);\n  }\n  \n  set<K extends keyof UserPreferences>(key: K, value: UserPreferences[K]): void {\n    this.store.set(key, value);\n  }\n  \n  resetToDefaults(): void {\n    this.store.clear();\n    this.store.set(this.defaults);\n  }\n}\n```",
+      "testStrategy": "1. Unit tests for settings storage and retrieval\n2. Verify default settings are applied correctly\n3. Test settings persistence across application restarts\n4. Validate settings migration for version updates\n5. Test settings validation logic\n6. Verify settings are applied correctly to application components\n7. Test edge cases (corrupt settings file, missing permissions)",
+      "priority": "medium",
+      "dependencies": [
+        1
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Implement Multiple Monitor Support",
+      "description": "Enhance the capture engine to detect and handle multiple displays, allowing users to capture specific monitors or span captures across displays.",
+      "details": "1. Extend CaptureEngine to detect all connected displays\n2. Create monitor selection interface\n3. Implement capture methods for specific monitors\n4. Add support for capturing across multiple displays\n5. Handle different monitor resolutions and scaling factors\n6. Optimize performance for multi-monitor setups\n7. Add monitor identification in metadata\n\nMulti-monitor detection:\n```typescript\nasync function getConnectedDisplays(): Promise<Display[]> {\n  const displays = screen.getAllDisplays();\n  return displays.map(display => ({\n    id: display.id.toString(),\n    name: `Display ${display.id}`,\n    bounds: display.bounds,\n    workArea: display.workArea,\n    scaleFactor: display.scaleFactor,\n    isPrimary: display.id === screen.getPrimaryDisplay().id\n  }));\n}\n\nasync function captureSpecificMonitor(displayId: string): Promise<Buffer> {\n  const sources = await desktopCapturer.getSources({ \n    types: ['screen'],\n    thumbnailSize: { width: 0, height: 0 }\n  });\n  \n  // Match source to display ID\n  const source = sources.find(s => s.display_id === displayId);\n  if (!source) throw new Error(`Monitor with ID ${displayId} not found`);\n  \n  // Capture logic\n  // ...\n  \n  return imageBuffer;\n}\n```",
+      "testStrategy": "1. Test with various multi-monitor configurations\n2. Verify correct monitor identification\n3. Test captures on monitors with different resolutions\n4. Validate handling of monitors with different scale factors\n5. Performance testing on multi-monitor setups\n6. Test monitor hot-plugging scenarios\n7. Verify metadata correctly identifies source monitor",
+      "priority": "medium",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Implement Delayed Screenshot Timer",
+      "description": "Add functionality to set a countdown timer before capturing the screen, allowing users to prepare the content they want to capture.",
+      "details": "1. Extend CaptureEngine with delayed capture methods\n2. Create timer UI with countdown display\n3. Implement configurable delay options (3, 5, 10 seconds)\n4. Add visual and audio countdown feedback\n5. Allow cancellation during countdown\n6. Preserve capture settings during delay\n7. Add delay information to screenshot metadata\n\nDelayed capture implementation:\n```typescript\nasync function captureWithDelay(\n  captureMethod: () => Promise<Buffer>,\n  delaySeconds: number,\n  onTick?: (remainingSeconds: number) => void\n): Promise<Buffer> {\n  return new Promise((resolve, reject) => {\n    let remaining = delaySeconds;\n    const timer = setInterval(() => {\n      remaining--;\n      if (onTick) onTick(remaining);\n      \n      if (remaining <= 0) {\n        clearInterval(timer);\n        captureMethod()\n          .then(resolve)\n          .catch(reject);\n      }\n    }, 1000);\n    \n    // Return cancel function\n    return () => {\n      clearInterval(timer);\n      reject(new Error('Capture cancelled'));\n    };\n  });\n}\n```\n\nTimer UI component:\n```typescript\nconst TimerOverlay: React.FC<{\n  seconds: number;\n  onComplete: () => void;\n  onCancel: () => void;\n}> = ({ seconds, onComplete, onCancel }) => {\n  const [remaining, setRemaining] = useState(seconds);\n  \n  useEffect(() => {\n    if (remaining <= 0) {\n      onComplete();\n      return;\n    }\n    \n    const timer = setTimeout(() => {\n      setRemaining(prev => prev - 1);\n      // Play tick sound\n      new Audio('assets/tick.mp3').play();\n    }, 1000);\n    \n    return () => clearTimeout(timer);\n  }, [remaining, onComplete]);\n  \n  return (\n    <div className=\"timer-overlay\">\n      <div className=\"timer-display\">{remaining}</div>\n      <button onClick={onCancel}>Cancel</button>\n    </div>\n  );\n};\n```",
+      "testStrategy": "1. Unit test timer functionality\n2. Verify countdown accuracy\n3. Test cancellation during countdown\n4. Validate visual and audio feedback\n5. Test with different delay durations\n6. Verify capture settings are preserved during delay\n7. Test edge cases (system sleep during countdown, application focus change)",
+      "priority": "low",
+      "dependencies": [
+        2,
+        4
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Implement Blur/Pixelate Tools",
+      "description": "Add tools to the editor for blurring or pixelating sensitive information in screenshots to protect privacy.",
+      "details": "1. Extend Editor with blur and pixelate tools\n2. Implement blur algorithm with configurable intensity\n3. Implement pixelate algorithm with configurable pixel size\n4. Create selection mechanism for areas to blur/pixelate\n5. Add preview functionality\n6. Optimize performance for large blur areas\n7. Ensure non-destructive editing with history support\n\nBlur implementation:\n```typescript\nfunction applyGaussianBlur(\n  imageData: ImageData,\n  region: { x: number, y: number, width: number, height: number },\n  radius: number\n): ImageData {\n  // Create a copy of the image data to avoid modifying original\n  const result = new ImageData(\n    new Uint8ClampedArray(imageData.data),\n    imageData.width,\n    imageData.height\n  );\n  \n  // Apply gaussian blur algorithm to the specified region\n  // Implementation of blur algorithm...\n  // This would use convolution with a gaussian kernel\n  \n  return result;\n}\n\nfunction applyPixelate(\n  imageData: ImageData,\n  region: { x: number, y: number, width: number, height: number },\n  blockSize: number\n): ImageData {\n  // Create a copy of the image data\n  const result = new ImageData(\n    new Uint8ClampedArray(imageData.data),\n    imageData.width,\n    imageData.height\n  );\n  \n  // For each block in the region\n  for (let y = region.y; y < region.y + region.height; y += blockSize) {\n    for (let x = region.x; x < region.x + region.width; x += blockSize) {\n      // Calculate average color of block\n      // Apply that color to all pixels in the block\n    }\n  }\n  \n  return result;\n}\n```",
+      "testStrategy": "1. Unit test blur and pixelate algorithms\n2. Verify visual quality of blur/pixelate effects\n3. Test performance with large images and blur areas\n4. Validate selection mechanism for defining blur regions\n5. Test undo/redo functionality with blur operations\n6. Verify blur intensity and pixelate size configuration\n7. Test edge cases (blur at image boundaries, very small/large blur areas)",
+      "priority": "medium",
+      "dependencies": [
+        5
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Implement Collections and Tags System",
+      "description": "Create a system for organizing screenshots into collections and applying tags for easier categorization and retrieval, with emphasis on a quick tagging system for immediate visual categorization.",
+      "status": "pending",
+      "dependencies": [
+        2
+      ],
+      "priority": "high",
+      "details": "1. Extend database schema for collections and tags\n2. Create CollectionManager and TagManager classes\n3. Implement CRUD operations for collections and tags\n4. Add UI for collection and tag management\n5. Create relationship between screenshots and collections/tags\n6. Implement filtering by collection/tag\n7. Add batch operations for applying tags/collections to multiple screenshots\n8. Implement one-click quick tagging system with visual indicators\n9. Create predefined tag types (bug, idea, question, todo) with distinct visual indicators\n10. Enable custom tag creation with color coding\n11. Ensure tags are immediately visible in screenshot library\n12. Implement quick filtering by tag type\n\nDatabase schema extensions:\n```sql\nCREATE TABLE collections (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL,\n  description TEXT,\n  created_at INTEGER NOT NULL,\n  updated_at INTEGER NOT NULL\n);\n\nCREATE TABLE tags (\n  id TEXT PRIMARY KEY,\n  name TEXT NOT NULL UNIQUE,\n  color TEXT,\n  icon TEXT,\n  is_predefined BOOLEAN DEFAULT 0,\n  created_at INTEGER NOT NULL\n);\n\nCREATE TABLE screenshot_collections (\n  screenshot_id TEXT NOT NULL,\n  collection_id TEXT NOT NULL,\n  added_at INTEGER NOT NULL,\n  PRIMARY KEY (screenshot_id, collection_id),\n  FOREIGN KEY (screenshot_id) REFERENCES screenshots (id) ON DELETE CASCADE,\n  FOREIGN KEY (collection_id) REFERENCES collections (id) ON DELETE CASCADE\n);\n\nCREATE TABLE screenshot_tags (\n  screenshot_id TEXT NOT NULL,\n  tag_id TEXT NOT NULL,\n  PRIMARY KEY (screenshot_id, tag_id),\n  FOREIGN KEY (screenshot_id) REFERENCES screenshots (id) ON DELETE CASCADE,\n  FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE\n);\n```\n\nCollection manager implementation:\n```typescript\nclass CollectionManager {\n  constructor(private db: Database) {}\n  \n  async createCollection(name: string, description?: string): Promise<string> {\n    const id = uuidv4();\n    const now = Date.now();\n    \n    await this.db.run(\n      'INSERT INTO collections (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',\n      [id, name, description || '', now, now]\n    );\n    \n    return id;\n  }\n  \n  async addScreenshotToCollection(screenshotId: string, collectionId: string): Promise<void> {\n    await this.db.run(\n      'INSERT INTO screenshot_collections (screenshot_id, collection_id, added_at) VALUES (?, ?, ?)',\n      [screenshotId, collectionId, Date.now()]\n    );\n  }\n  \n  // Additional methods for updating, deleting, and querying collections\n  // ...\n}\n```\n\nTag manager implementation:\n```typescript\nclass TagManager {\n  constructor(private db: Database) {}\n  \n  async initialize(): Promise<void> {\n    // Create predefined tags if they don't exist\n    const predefinedTags = [\n      { name: 'Bug', color: '#FF0000', icon: 'bug-icon' },\n      { name: 'Idea', color: '#00BFFF', icon: 'lightbulb-icon' },\n      { name: 'Question', color: '#9932CC', icon: 'question-icon' },\n      { name: 'Todo', color: '#FFD700', icon: 'todo-icon' }\n    ];\n    \n    for (const tag of predefinedTags) {\n      const existing = await this.getTagByName(tag.name);\n      if (!existing) {\n        await this.createTag(tag.name, tag.color, tag.icon, true);\n      }\n    }\n  }\n  \n  async createTag(name: string, color?: string, icon?: string, isPredefined: boolean = false): Promise<string> {\n    const id = uuidv4();\n    const now = Date.now();\n    \n    await this.db.run(\n      'INSERT INTO tags (id, name, color, icon, is_predefined, created_at) VALUES (?, ?, ?, ?, ?, ?)',\n      [id, name, color || '#CCCCCC', icon || '', isPredefined ? 1 : 0, now]\n    );\n    \n    return id;\n  }\n  \n  async quickTagScreenshot(screenshotId: string, tagName: string): Promise<void> {\n    const tag = await this.getTagByName(tagName);\n    let tagId;\n    \n    if (tag) {\n      tagId = tag.id;\n    } else {\n      tagId = await this.createTag(tagName);\n    }\n    \n    await this.tagScreenshot(screenshotId, tagId);\n  }\n  \n  async tagScreenshot(screenshotId: string, tagId: string): Promise<void> {\n    await this.db.run(\n      'INSERT OR IGNORE INTO screenshot_tags (screenshot_id, tag_id) VALUES (?, ?)',\n      [screenshotId, tagId]\n    );\n  }\n  \n  // Additional methods for updating, deleting, and querying tags\n  // ...\n}\n```",
+      "testStrategy": "1. Unit test CRUD operations for collections and tags\n2. Verify relationship management between screenshots and collections/tags\n3. Test batch operations\n4. Validate filtering and search by collection/tag\n5. Test database integrity with cascading deletes\n6. Performance testing with large numbers of collections/tags\n7. Test UI for collection and tag management\n8. Test one-click tagging functionality\n9. Verify predefined tags are created correctly on initialization\n10. Test visual indicators for different tag types\n11. Validate tag filtering in screenshot library\n12. Test tagging immediately after capture without opening editor\n13. Verify color coding system for custom tags",
+      "subtasks": []
+    },
+    {
+      "id": 11,
+      "title": "Implement Clipboard Integration",
+      "description": "Add functionality to automatically or optionally copy screenshots to the clipboard for immediate use in other applications.",
+      "details": "1. Implement clipboard service for image data\n2. Add configuration options for automatic clipboard copying\n3. Create copy-to-clipboard action for manual copying\n4. Support different clipboard formats (PNG, JPG, etc.)\n5. Handle large images with optimized clipboard data\n6. Add clipboard history feature (optional)\n7. Implement clipboard monitoring for paste functionality\n\nClipboard service implementation:\n```typescript\nimport { clipboard, nativeImage } from 'electron';\n\nclass ClipboardService {\n  copyImageToClipboard(imageBuffer: Buffer, format: 'png' | 'jpg' = 'png'): boolean {\n    try {\n      const image = nativeImage.createFromBuffer(imageBuffer);\n      clipboard.writeImage(image);\n      return true;\n    } catch (error) {\n      console.error('Failed to copy image to clipboard:', error);\n      return false;\n    }\n  }\n  \n  copyImagePathToClipboard(imagePath: string): boolean {\n    try {\n      clipboard.writeText(imagePath);\n      return true;\n    } catch (error) {\n      console.error('Failed to copy path to clipboard:', error);\n      return false;\n    }\n  }\n  \n  getImageFromClipboard(): Buffer | null {\n    const image = clipboard.readImage();\n    return image.isEmpty() ? null : image.toPNG();\n  }\n  \n  hasImageInClipboard(): boolean {\n    return !clipboard.readImage().isEmpty();\n  }\n}\n```",
+      "testStrategy": "1. Test copying different image formats to clipboard\n2. Verify automatic clipboard copying based on settings\n3. Test clipboard operations with various image sizes\n4. Validate clipboard history functionality\n5. Test paste from clipboard\n6. Verify clipboard format preservation\n7. Test clipboard integration across different applications",
+      "priority": "medium",
+      "dependencies": [
+        2,
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 12,
+      "title": "Implement Cloud Storage Integration",
+      "description": "Add functionality to upload screenshots to popular cloud storage services like Google Drive, Dropbox, and OneDrive.",
+      "details": "1. Create CloudStorageManager class\n2. Implement authentication flow for each service (OAuth)\n3. Create upload functionality for each service\n4. Add download/sync capabilities\n5. Implement service-specific metadata handling\n6. Create UI for cloud service configuration\n7. Add progress indicators for uploads/downloads\n\nCloud storage manager implementation:\n```typescript\ninterface CloudStorageProvider {\n  name: string;\n  authenticate(): Promise<boolean>;\n  isAuthenticated(): boolean;\n  uploadFile(filePath: string, options?: any): Promise<string>; // Returns URL\n  downloadFile(fileId: string, destinationPath: string): Promise<string>;\n  listFiles(folderId?: string): Promise<any[]>;\n  createFolder(name: string, parentId?: string): Promise<string>;\n  logout(): Promise<void>;\n}\n\nclass GoogleDriveProvider implements CloudStorageProvider {\n  private auth: any; // Google OAuth client\n  private drive: any; // Google Drive API client\n  \n  constructor(private clientId: string, private clientSecret: string) {\n    // Initialize Google API clients\n  }\n  \n  async authenticate(): Promise<boolean> {\n    // Implement OAuth flow for Google Drive\n    // Store tokens securely\n    return true;\n  }\n  \n  async uploadFile(filePath: string, options?: any): Promise<string> {\n    // Upload file to Google Drive\n    // Return shareable URL\n    return 'https://drive.google.com/file/d/....';\n  }\n  \n  // Implement other required methods\n  // ...\n}\n\n// Similar implementations for Dropbox and OneDrive\n\nclass CloudStorageManager {\n  private providers: Map<string, CloudStorageProvider> = new Map();\n  \n  registerProvider(provider: CloudStorageProvider): void {\n    this.providers.set(provider.name, provider);\n  }\n  \n  getProvider(name: string): CloudStorageProvider | undefined {\n    return this.providers.get(name);\n  }\n  \n  async uploadToService(serviceName: string, filePath: string, options?: any): Promise<string> {\n    const provider = this.getProvider(serviceName);\n    if (!provider) throw new Error(`Provider ${serviceName} not found`);\n    \n    if (!provider.isAuthenticated()) {\n      await provider.authenticate();\n    }\n    \n    return provider.uploadFile(filePath, options);\n  }\n}\n```",
+      "testStrategy": "1. Test authentication flow for each cloud service\n2. Verify upload and download functionality\n3. Test error handling for network issues\n4. Validate token refresh and session management\n5. Test progress reporting for uploads/downloads\n6. Verify URL generation for shared files\n7. Test with various file sizes and types\n8. Validate proper cleanup of temporary files",
+      "priority": "medium",
+      "dependencies": [
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 13,
+      "title": "Implement OCR Text Extraction",
+      "description": "Add Optical Character Recognition (OCR) functionality to extract text from screenshots for searching and editing.",
+      "details": "1. Integrate OCR library (Tesseract.js recommended)\n2. Create OCRService class for text extraction\n3. Implement text extraction on screenshot capture/import\n4. Add text indexing for search functionality\n5. Create UI for viewing and editing extracted text\n6. Implement language detection and multi-language support\n7. Add pre-processing for improved OCR accuracy\n\nOCR service implementation:\n```typescript\nimport { createWorker } from 'tesseract.js';\n\nclass OCRService {\n  private worker: Tesseract.Worker | null = null;\n  private initialized = false;\n  \n  async initialize(language = 'eng'): Promise<void> {\n    if (this.initialized) return;\n    \n    this.worker = createWorker();\n    await this.worker.load();\n    await this.worker.loadLanguage(language);\n    await this.worker.initialize(language);\n    \n    this.initialized = true;\n  }\n  \n  async extractText(imageBuffer: Buffer): Promise<{\n    text: string;\n    confidence: number;\n    words: Array<{\n      text: string;\n      confidence: number;\n      bbox: { x0: number; y0: number; x1: number; y1: number };\n    }>;\n  }> {\n    if (!this.initialized || !this.worker) {\n      await this.initialize();\n    }\n    \n    const result = await this.worker!.recognize(imageBuffer);\n    \n    return {\n      text: result.data.text,\n      confidence: result.data.confidence,\n      words: result.data.words\n    };\n  }\n  \n  async detectLanguage(imageBuffer: Buffer): Promise<string> {\n    // Implement language detection logic\n    // This could use a small portion of the image to detect language\n    return 'eng';\n  }\n  \n  async terminate(): Promise<void> {\n    if (this.worker) {\n      await this.worker.terminate();\n      this.worker = null;\n      this.initialized = false;\n    }\n  }\n}\n```\n\nDatabase extension for OCR data:\n```sql\nALTER TABLE screenshots ADD COLUMN ocr_text TEXT;\nALTER TABLE screenshots ADD COLUMN ocr_confidence REAL;\n\nCREATE TABLE ocr_words (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  screenshot_id TEXT NOT NULL,\n  word TEXT NOT NULL,\n  confidence REAL NOT NULL,\n  x0 INTEGER NOT NULL,\n  y0 INTEGER NOT NULL,\n  x1 INTEGER NOT NULL,\n  y1 INTEGER NOT NULL,\n  FOREIGN KEY (screenshot_id) REFERENCES screenshots (id) ON DELETE CASCADE\n);\n\nCREATE INDEX idx_ocr_words_screenshot ON ocr_words (screenshot_id);\nCREATE INDEX idx_ocr_words_word ON ocr_words (word);\n```",
+      "testStrategy": "1. Test OCR accuracy with various image types\n2. Verify text extraction performance\n3. Test language detection and multi-language support\n4. Validate word bounding box accuracy\n5. Test search functionality using extracted text\n6. Verify database indexing and query performance\n7. Test pre-processing improvements for OCR accuracy\n8. Validate memory usage during OCR processing",
+      "priority": "low",
+      "dependencies": [
+        3
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 14,
+      "title": "Implement Social Media Sharing",
+      "description": "Add functionality to share screenshots directly to social media platforms with account linking and customization options.",
+      "details": "1. Create SocialSharingManager class\n2. Implement authentication for major platforms (Twitter, Facebook, LinkedIn)\n3. Create sharing functionality for each platform\n4. Add customization options for shared content (captions, tags)\n5. Implement URL shortening for shared links\n6. Create UI for social sharing configuration\n7. Add analytics for shared content\n\nSocial sharing implementation:\n```typescript\ninterface SocialPlatform {\n  name: string;\n  authenticate(): Promise<boolean>;\n  isAuthenticated(): boolean;\n  share(options: {\n    imageBuffer?: Buffer;\n    imageUrl?: string;\n    text?: string;\n    tags?: string[];\n  }): Promise<string>; // Returns post URL or ID\n  logout(): Promise<void>;\n}\n\nclass TwitterPlatform implements SocialPlatform {\n  private client: any; // Twitter API client\n  private authenticated = false;\n  \n  constructor(private apiKey: string, private apiSecret: string) {\n    // Initialize Twitter API client\n  }\n  \n  async authenticate(): Promise<boolean> {\n    // Implement OAuth flow for Twitter\n    // Store tokens securely\n    this.authenticated = true;\n    return true;\n  }\n  \n  isAuthenticated(): boolean {\n    return this.authenticated;\n  }\n  \n  async share(options: {\n    imageBuffer?: Buffer;\n    imageUrl?: string;\n    text?: string;\n    tags?: string[];\n  }): Promise<string> {\n    if (!this.isAuthenticated()) {\n      await this.authenticate();\n    }\n    \n    // Format text with tags\n    let fullText = options.text || '';\n    if (options.tags && options.tags.length > 0) {\n      fullText += ' ' + options.tags.map(tag => `#${tag}`).join(' ');\n    }\n    \n    // Upload image and post tweet\n    // Return tweet URL\n    return 'https://twitter.com/user/status/123456789';\n  }\n  \n  async logout(): Promise<void> {\n    // Revoke tokens and clear stored credentials\n    this.authenticated = false;\n  }\n}\n\n// Similar implementations for Facebook and LinkedIn\n\nclass SocialSharingManager {\n  private platforms: Map<string, SocialPlatform> = new Map();\n  \n  registerPlatform(platform: SocialPlatform): void {\n    this.platforms.set(platform.name, platform);\n  }\n  \n  getPlatform(name: string): SocialPlatform | undefined {\n    return this.platforms.get(name);\n  }\n  \n  async shareToService(\n    serviceName: string,\n    options: {\n      imageBuffer?: Buffer;\n      imageUrl?: string;\n      text?: string;\n      tags?: string[];\n    }\n  ): Promise<string> {\n    const platform = this.getPlatform(serviceName);\n    if (!platform) throw new Error(`Platform ${serviceName} not found`);\n    \n    return platform.share(options);\n  }\n}\n```",
+      "testStrategy": "1. Test authentication flow for each social platform\n2. Verify sharing functionality with various content types\n3. Test error handling for API rate limits and network issues\n4. Validate token refresh and session management\n5. Test URL shortening functionality\n6. Verify analytics tracking for shared content\n7. Test with various image sizes and formats\n8. Validate proper error messaging for failed shares",
+      "priority": "low",
+      "dependencies": [
+        3,
+        12
+      ],
+      "status": "pending",
+      "subtasks": []
+    },
+    {
+      "id": 15,
+      "title": "Implement Scrolling Screenshot Capture",
+      "description": "Add functionality to automatically capture entire webpages, documents, or scrollable content by stitching together multiple captures.",
+      "details": "1. Extend CaptureEngine with scrolling capture capability\n2. Implement detection of scrollable areas\n3. Create algorithm for capturing and stitching content\n4. Add progress indicator for scrolling captures\n5. Implement overlap detection to avoid duplicates\n6. Create UI for scrolling capture configuration\n7. Add error handling for failed captures\n\nScrolling capture implementation:\n```typescript\nasync function captureScrollableContent(\n  windowId: number,\n  options: {\n    maxScrolls?: number;\n    scrollDelay?: number;\n    overlapPixels?: number;\n    direction?: 'vertical' | 'horizontal' | 'both';\n  } = {}\n): Promise<Buffer> {\n  const {\n    maxScrolls = 20,\n    scrollDelay = 500,\n    overlapPixels = 200,\n    direction = 'vertical'\n  } = options;\n  \n  // Get target window\n  const targetWindow = BrowserWindow.fromId(windowId);\n  if (!targetWindow) throw new Error(`Window with ID ${windowId} not found`);\n  \n  // Capture initial viewport\n  const initialCapture = await captureWindow(windowId);\n  const captures = [initialCapture];\n  \n  // Get initial scroll position and content dimensions\n  const {\n    scrollHeight,\n    scrollWidth,\n    clientHeight,\n    clientWidth,\n    scrollTop,\n    scrollLeft\n  } = await targetWindow.webContents.executeJavaScript(`\n    ({\n      scrollHeight: document.documentElement.scrollHeight,\n      scrollWidth: document.documentElement.scrollWidth,\n      clientHeight: document.documentElement.clientHeight,\n      clientWidth: document.documentElement.clientWidth,\n      scrollTop: document.documentElement.scrollTop,\n      scrollLeft: document.documentElement.scrollLeft\n    })\n  `);\n  \n  // Calculate number of scrolls needed\n  const verticalScrolls = direction === 'vertical' || direction === 'both'\n    ? Math.ceil((scrollHeight - clientHeight) / (clientHeight - overlapPixels))\n    : 0;\n    \n  const horizontalScrolls = direction === 'horizontal' || direction === 'both'\n    ? Math.ceil((scrollWidth - clientWidth) / (clientWidth - overlapPixels))\n    : 0;\n  \n  // Limit scrolls to maxScrolls\n  const totalScrolls = Math.min(\n    maxScrolls,\n    verticalScrolls + horizontalScrolls\n  );\n  \n  // Perform scrolls and captures\n  let currentScrollTop = scrollTop;\n  let currentScrollLeft = scrollLeft;\n  \n  for (let i = 0; i < totalScrolls; i++) {\n    // Calculate next scroll position\n    if (direction === 'vertical' || (direction === 'both' && i % 2 === 0)) {\n      currentScrollTop += clientHeight - overlapPixels;\n    } else {\n      currentScrollLeft += clientWidth - overlapPixels;\n    }\n    \n    // Scroll to position\n    await targetWindow.webContents.executeJavaScript(`\n      window.scrollTo(${currentScrollLeft}, ${currentScrollTop});\n    `);\n    \n    // Wait for content to load after scroll\n    await new Promise(resolve => setTimeout(resolve, scrollDelay));\n    \n    // Capture current viewport\n    const capture = await captureWindow(windowId);\n    captures.push(capture);\n  }\n  \n  // Reset scroll position\n  await targetWindow.webContents.executeJavaScript(`\n    window.scrollTo(${scrollLeft}, ${scrollTop});\n  `);\n  \n  // Stitch images together\n  return stitchImages(captures, direction, overlapPixels);\n}\n\nfunction stitchImages(\n  captures: Buffer[],\n  direction: 'vertical' | 'horizontal' | 'both',\n  overlapPixels: number\n): Promise<Buffer> {\n  // Implement image stitching algorithm\n  // This would use canvas or image processing library to combine images\n  // with proper overlap detection and alignment\n  // ...\n}\n```",
+      "testStrategy": "1. Test scrolling capture on various websites and applications\n2. Verify stitching quality and alignment\n3. Test with different scroll directions\n4. Validate handling of dynamic content that changes on scroll\n5. Test performance with very long pages\n6. Verify overlap detection and duplicate removal\n7. Test error handling for interrupted scrolling\n8. Validate memory usage during large scrolling captures",
+      "priority": "low",
+      "dependencies": [
+        2
+      ],
+      "status": "pending",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Implement Scrollable Area Detection",
+          "description": "Develop algorithms to identify and analyze scrollable areas within a webpage or application",
+          "dependencies": [],
+          "details": "Create a system to detect scrollable elements using DOM traversal for web pages and accessibility APIs for native applications. Implement detection for various scroll containers (main page, divs, iframes). Calculate viewport dimensions and total scrollable content size. Handle nested scrollable areas with priority determination. Performance considerations: Optimize detection to complete under 200ms, use element caching to avoid redundant calculations. Testing scenarios: Test with single-page scrolling, nested scrollable divs, dynamically loaded content, and various viewport sizes.",
+          "status": "pending"
+        },
+        {
+          "id": 2,
+          "title": "Develop Automated Scrolling and Capture Sequence",
+          "description": "Create a mechanism to programmatically scroll through content while capturing screenshots at appropriate intervals",
+          "dependencies": [
+            1
+          ],
+          "details": "Implement smooth scrolling with configurable speed and pause intervals. Calculate optimal scroll step size based on viewport height with 20-30% overlap between captures. Add delay timers to allow content rendering before capture (configurable for different content types). Handle scroll events and track scroll position. Develop capture timing coordination to prevent tearing artifacts. Performance considerations: Minimize CPU usage during scrolling, handle scroll jank detection. Testing scenarios: Test with text-heavy pages, image galleries, infinite scroll pages, and pages with lazy-loaded content.",
+          "status": "pending"
+        },
+        {
+          "id": 3,
+          "title": "Implement Image Stitching Algorithm",
+          "description": "Develop an algorithm to combine multiple screenshot captures into a single cohesive image",
+          "dependencies": [
+            2
+          ],
+          "details": "Create an image processing pipeline to merge sequential captures. Implement canvas-based stitching for web or native image processing libraries for desktop. Develop memory-efficient processing for large captures using streaming or tiling approaches. Optimize image format and compression for final output. Performance considerations: Implement progressive stitching to avoid memory issues with large captures, use Web Workers for browser implementations. Testing scenarios: Test with text documents, graphical content, mixed content types, and extremely long pages (>10000px).",
+          "status": "pending"
+        },
+        {
+          "id": 4,
+          "title": "Develop Overlap Detection and Alignment System",
+          "description": "Create algorithms to detect overlapping regions between captures and ensure proper alignment in the final image",
+          "dependencies": [
+            3
+          ],
+          "details": "Implement feature detection in overlapping regions using techniques like SIFT or ORB. Create pixel-matching algorithms to find exact alignment points. Handle content that changes during scrolling with difference detection. Implement perspective correction for any skewing or distortion. Performance considerations: Use GPU acceleration where available, implement fallback simplified algorithms for low-end devices. Testing scenarios: Test with static content, animated content, pages with fixed elements, and responsive layouts that reflow during scrolling.",
+          "status": "pending"
+        },
+        {
+          "id": 5,
+          "title": "Implement Progress Tracking and Error Handling",
+          "description": "Develop systems to track capture progress, handle errors, and recover from failures during the screenshot process",
+          "dependencies": [
+            2,
+            3,
+            4
+          ],
+          "details": "Create a progress tracking system with percentage completion and time remaining estimates. Implement error detection for scroll failures, rendering issues, and memory limitations. Develop recovery mechanisms for partial failures (retry logic, checkpoint saving). Add user feedback for long-running captures. Performance considerations: Implement low-overhead logging that doesn't impact capture performance. Testing scenarios: Test with network interruptions, low memory conditions, rapidly changing content, and browser/application crashes during capture.",
+          "status": "pending"
+        }
+      ]
+    }
+  ]
+}

@@ -229,7 +229,7 @@ function App() {
   const [isSaving, setIsSaving] = React.useState(false);
   const [clipboardSuccess, setClipboardSuccess] = React.useState(false);
   const [showSettings, setShowSettings] = React.useState(false);
-  
+
   const handleCapture = async () => {
     // Reset state for new screenshot
     setSavedFilePath(null);
@@ -269,6 +269,28 @@ function App() {
     }
   };
 
+  const handleAreaCapture = async () => {
+    setSavedFilePath(null);
+    setClipboardSuccess(false);
+    // Step 1: Ask main process to show overlay and get area
+    const area = await window.electron.invoke('trigger-area-overlay');
+    if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
+      // User cancelled or overlay failed
+      return;
+    }
+    // Step 2: Send area to main process to crop and save screenshot
+    const result = await window.electron.invoke('capture-area', area);
+    if (result && result.base64Image) {
+      setScreenshot(result.base64Image);
+      setSavedFilePath(result.savedFilePath);
+      if (result.clipboardCopySuccess) {
+        setClipboardSuccess(true);
+      }
+    } else {
+      alert('Area capture failed.');
+    }
+  };
+
   return (
     <div style={styles.appContainer}>
       <header style={styles.appHeader}>
@@ -283,7 +305,12 @@ function App() {
           >
             <span>Capture Full Screen</span>
           </button>
-          
+          <button
+            style={styles.captureButton}
+            onClick={handleAreaCapture}
+          >
+            <span>Capture Area</span>
+          </button>
           <button 
             style={styles.settingsButton}
             onClick={() => setShowSettings(true)}

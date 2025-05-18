@@ -1,0 +1,278 @@
+# Task ID: 10
+# Title: Implement Collections and Tags System
+# Status: pending
+# Dependencies: 2, 16
+# Priority: high
+# Description: Create a system for organizing screenshots into collections and applying tags for easier categorization and retrieval, with emphasis on a quick tagging system for immediate visual categorization, utilizing the sidecar-based storage architecture.
+# Details:
+1. Implement tags storage within sidecar files
+2. Create CollectionManager and TagManager classes that work with the sidecar architecture
+3. Implement CRUD operations for collections and tags
+4. Add UI for collection and tag management
+5. Create relationship between screenshots and collections/tags
+6. Implement filtering by collection/tag, application, and date/time ranges
+7. Add batch operations for applying tags/collections to multiple screenshots
+8. Implement one-click quick tagging system with visual indicators
+9. Create predefined tag types (bug, error, flags, info, followup, funny) with distinct visual indicators
+10. Enable custom tag creation with color coding
+11. Ensure tags are immediately visible in screenshot library
+12. Implement quick filtering by tag type
+
+Sidecar Tag Storage Structure:
+```json
+{
+  "tags": [
+    {
+      "id": "tag-uuid",
+      "name": "Bug",
+      "color": "#FF0000",
+      "icon": "bug-icon",
+      "isPredefined": true,
+      "appliedAt": 1623456789000
+    }
+  ],
+  "collections": [
+    {
+      "id": "collection-uuid",
+      "name": "Project X",
+      "addedAt": 1623456789000
+    }
+  ]
+}
+```
+
+Collection manager implementation with sidecar support:
+```typescript
+class CollectionManager {
+  constructor(private sidecarManager: SidecarManager) {}
+  
+  async createCollection(name: string, description?: string): Promise<string> {
+    const id = uuidv4();
+    const now = Date.now();
+    
+    // Store collection metadata in a central index for quick lookup
+    await this.sidecarManager.updateGlobalIndex('collections', id, {
+      id,
+      name,
+      description: description || '',
+      created_at: now,
+      updated_at: now
+    });
+    
+    return id;
+  }
+  
+  async addScreenshotToCollection(screenshotId: string, collectionId: string): Promise<void> {
+    // Get collection details from global index
+    const collection = await this.sidecarManager.getFromGlobalIndex('collections', collectionId);
+    if (!collection) throw new Error('Collection not found');
+    
+    // Update screenshot's sidecar file to include collection reference
+    await this.sidecarManager.updateSidecar(screenshotId, (sidecarData) => {
+      if (!sidecarData.collections) sidecarData.collections = [];
+      
+      // Check if already in collection to avoid duplicates
+      if (!sidecarData.collections.some(c => c.id === collectionId)) {
+        sidecarData.collections.push({
+          id: collectionId,
+          name: collection.name,
+          addedAt: Date.now()
+        });
+      }
+      
+      return sidecarData;
+    });
+  }
+  
+  // Additional methods for updating, deleting, and querying collections
+  // ...
+}
+```
+
+Tag manager implementation with sidecar support:
+```typescript
+class TagManager {
+  constructor(private sidecarManager: SidecarManager) {}
+  
+  async initialize(): Promise<void> {
+    // Create predefined tags if they don't exist in the global index
+    const predefinedTags = [
+      { name: 'Bug', color: '#FF0000', icon: 'bug-icon' },
+      { name: 'Error', color: '#FF3300', icon: 'error-icon' },
+      { name: 'Flag', color: '#FF9900', icon: 'flag-icon' },
+      { name: 'Info', color: '#3399FF', icon: 'info-icon' },
+      { name: 'Followup', color: '#9932CC', icon: 'followup-icon' },
+      { name: 'Funny', color: '#33CC33', icon: 'funny-icon' }
+    ];
+    
+    for (const tag of predefinedTags) {
+      const existing = await this.getTagByName(tag.name);
+      if (!existing) {
+        await this.createTag(tag.name, tag.color, tag.icon, true);
+      }
+    }
+  }
+  
+  async createTag(name: string, color?: string, icon?: string, isPredefined: boolean = false): Promise<string> {
+    const id = uuidv4();
+    const now = Date.now();
+    
+    // Store tag in global index for quick lookup and filtering
+    await this.sidecarManager.updateGlobalIndex('tags', id, {
+      id,
+      name,
+      color: color || '#CCCCCC',
+      icon: icon || '',
+      isPredefined: isPredefined,
+      created_at: now
+    });
+    
+    return id;
+  }
+  
+  async quickTagScreenshot(screenshotId: string, tagName: string): Promise<void> {
+    const tag = await this.getTagByName(tagName);
+    let tagId;
+    
+    if (tag) {
+      tagId = tag.id;
+    } else {
+      tagId = await this.createTag(tagName);
+    }
+    
+    await this.tagScreenshot(screenshotId, tagId);
+  }
+  
+  async tagScreenshot(screenshotId: string, tagId: string): Promise<void> {
+    // Get tag details from global index
+    const tag = await this.sidecarManager.getFromGlobalIndex('tags', tagId);
+    if (!tag) throw new Error('Tag not found');
+    
+    // Update screenshot's sidecar file to include tag
+    await this.sidecarManager.updateSidecar(screenshotId, (sidecarData) => {
+      if (!sidecarData.tags) sidecarData.tags = [];
+      
+      // Check if already tagged to avoid duplicates
+      if (!sidecarData.tags.some(t => t.id === tagId)) {
+        sidecarData.tags.push({
+          id: tagId,
+          name: tag.name,
+          color: tag.color,
+          icon: tag.icon,
+          isPredefined: tag.isPredefined,
+          appliedAt: Date.now()
+        });
+      }
+      
+      return sidecarData;
+    });
+  }
+  
+  // Additional methods for updating, deleting, and querying tags
+  // ...
+}
+```
+
+# Test Strategy:
+1. Unit test CRUD operations for collections and tags with sidecar files
+2. Verify relationship management between screenshots and collections/tags in sidecar files
+3. Test batch operations
+4. Validate filtering and search by collection/tag, application, and date/time ranges
+5. Test sidecar file integrity with tag and collection operations
+6. Performance testing with large numbers of collections/tags in sidecar architecture
+7. Test UI for collection and tag management
+8. Test one-click tagging functionality
+9. Verify predefined tags are created correctly on initialization
+10. Test visual indicators for different tag types (bug, error, flags, info, followup, funny)
+11. Validate tag filtering in screenshot library
+12. Test tagging immediately after capture without opening editor
+13. Verify color coding system for custom tags
+14. Test integration with the sidecar storage architecture
+15. Verify efficient tag-based filtering performance with sidecar files
+
+# Subtasks:
+## 1. Sidecar Schema Design for Tags and Collections [pending]
+### Dependencies: None
+### Description: Design and implement the sidecar file schema to support collections and tags, ensuring efficient storage and retrieval.
+### Details:
+1. Design JSON schema for storing tags and collections in sidecar files
+2. Create structure for tag metadata (id, name, color, icon, etc.)
+3. Design collection references within sidecar files
+4. Implement efficient indexing for quick tag and collection lookups
+5. Create global index for all available tags and collections
+6. Design schema for predefined tag types with visual indicators
+7. Ensure schema supports efficient filtering operations
+8. Document schema design and relationships
+9. Create migration utilities for any existing tag/collection data
+
+## 2. Collection and Tag Manager Implementation [pending]
+### Dependencies: 10.1
+### Description: Develop the backend services and APIs for managing collections and tags using the sidecar architecture, including CRUD operations and batch processing capabilities.
+### Details:
+1. Create data models and DTOs for collections and tags
+2. Implement service layer for CRUD operations on collections and tags using sidecar files
+3. Develop batch operations for adding/removing items to/from collections
+4. Create APIs for tag assignment and removal (both individual and batch)
+5. Implement efficient filtering and search by collections/tags, application, and date/time
+6. Add caching mechanisms for frequently accessed collections and tags
+7. Implement pagination for large result sets
+8. Write comprehensive unit and integration tests
+9. Document API endpoints and usage examples
+10. Ensure proper integration with the SidecarManager class
+
+## 3. UI for Collection/Tag Management and Filtering [pending]
+### Dependencies: 10.2
+### Description: Design and implement the user interface components for creating, editing, and managing collections and tags, as well as filtering content by these attributes.
+### Details:
+1. Design UI mockups for collection/tag management interfaces
+2. Implement collection creation and editing forms
+3. Create tag input component with autocomplete functionality
+4. Develop UI for batch operations (adding multiple items to collections)
+5. Implement drag-and-drop functionality for organizing collections
+6. Create filter components for collections, tags, applications, and date/time ranges
+7. Optimize rendering for large collections using virtualization
+8. Implement client-side caching for better performance
+9. Add keyboard shortcuts for common actions
+10. Ensure accessibility compliance
+11. Write UI component tests
+
+## 4. Implement Quick Tagging System with Visual Indicators [pending]
+### Dependencies: 10.2, 10.3
+### Description: Develop a quick tagging system with one-click functionality, visual indicators, and predefined tag types similar to Bugshooting's visual indicators for different tag types.
+### Details:
+1. Design and implement predefined tag types (bug, error, flags, info, followup, funny) with distinct visual icons and colors
+2. Create visual indicators for tagged items in the screenshot library
+3. Implement one-click tagging functionality from the post-capture UI
+4. Design and implement a quick tag bar that appears after capture
+5. Create hover states and tooltips for tag buttons
+6. Implement keyboard shortcuts for quick tagging
+7. Add smooth animations for tag application
+8. Ensure visual indicators scale properly at different UI sizes
+9. Design and implement tag overlay appearance in thumbnails
+10. Create visual feedback when applying tags
+11. Implement atomic tag operations to ensure data consistency
+12. Integrate with sidecar storage for persisting tag information
+
+## 5. Implement Enhanced Filtering System [pending]
+### Dependencies: 10.2, 10.3, 10.4
+### Description: Design and implement an enhanced filtering system that allows users to quickly filter screenshots by tag types, applications, and date/time ranges.
+### Details:
+1. Design filter UI for multi-criteria filtering in the screenshot library
+2. Implement filter controls with visual indicators matching the tag styling
+3. Create optimized queries for filtering using sidecar metadata
+4. Implement combined filtering (multiple tags, collections, applications, date ranges)
+5. Add quick toggle buttons for common tag filters
+6. Create saved filter functionality for frequently used combinations
+7. Implement instant filtering with no perceptible delay
+8. Design and implement empty state for filtered results
+9. Add count indicators for each filter option
+10. Implement filter history and forward/back navigation
+11. Ensure filter state persists between app sessions
+12. Optimize performance for large libraries with many tags
+
+## 6. Sidecar Integration and Performance Optimization [pending]
+### Dependencies: 10.1, 10.2
+### Description: Ensure proper integration with the sidecar storage architecture and optimize performance for tag-based operations.
+### Details:
+
+

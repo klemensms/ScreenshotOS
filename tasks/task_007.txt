@@ -1,0 +1,54 @@
+# Task ID: 7
+# Title: Implement Multiple Monitor Support
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Enhance the capture engine to detect and handle multiple displays, allowing users to capture specific monitors or span captures across displays.
+# Details:
+1. Extend CaptureEngine to detect all connected displays
+2. Create monitor selection interface
+3. Implement capture methods for specific monitors
+4. Add support for capturing across multiple displays
+5. Handle different monitor resolutions and scaling factors
+6. Optimize performance for multi-monitor setups
+7. Add monitor identification in metadata
+
+Multi-monitor detection:
+```typescript
+async function getConnectedDisplays(): Promise<Display[]> {
+  const displays = screen.getAllDisplays();
+  return displays.map(display => ({
+    id: display.id.toString(),
+    name: `Display ${display.id}`,
+    bounds: display.bounds,
+    workArea: display.workArea,
+    scaleFactor: display.scaleFactor,
+    isPrimary: display.id === screen.getPrimaryDisplay().id
+  }));
+}
+
+async function captureSpecificMonitor(displayId: string): Promise<Buffer> {
+  const sources = await desktopCapturer.getSources({ 
+    types: ['screen'],
+    thumbnailSize: { width: 0, height: 0 }
+  });
+  
+  // Match source to display ID
+  const source = sources.find(s => s.display_id === displayId);
+  if (!source) throw new Error(`Monitor with ID ${displayId} not found`);
+  
+  // Capture logic
+  // ...
+  
+  return imageBuffer;
+}
+```
+
+# Test Strategy:
+1. Test with various multi-monitor configurations
+2. Verify correct monitor identification
+3. Test captures on monitors with different resolutions
+4. Validate handling of monitors with different scale factors
+5. Performance testing on multi-monitor setups
+6. Test monitor hot-plugging scenarios
+7. Verify metadata correctly identifies source monitor

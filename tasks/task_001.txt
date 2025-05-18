@@ -1,0 +1,125 @@
+# Task ID: 1
+# Title: ScreenshotOS MVP and Foundation
+# Status: done
+# Dependencies: None
+# Priority: critical
+# Description: Develop the ScreenshotOS application as a single, evolving codebase. The MVP is the first milestone, built directly on the intended long-term architecture. All future features will extend this foundation. There is no throwaway or parallel MVP—every feature and improvement builds on the same codebase.
+# Details:
+1. Set up the project repository and folder structure for long-term growth
+2. Implement the core MVP features: high-performance macOS screen capture, basic file saving, and automatic clipboard copy
+3. Create a minimal, functional UI for capture and save location
+4. Ensure all code, structure, and dependencies are ready for future features (tagging, sidecar, advanced editing, etc.)
+5. All future enhancements will be layered on this foundation
+
+MVP features:
+- Full screen capture (macOS, <100ms)
+- Save to user-configurable location
+- Automatic clipboard copy
+- Minimal UI for capture and settings
+- Error handling and user feedback
+- Foundation for tagging, metadata, and sidecar architecture
+
+Acceptance Criteria:
+- App launches and works on macOS
+- User can capture, save, and copy screenshots
+- Project structure supports incremental feature addition
+- No code or structure will need to be thrown away for future phases
+- All code is production quality and ready for extension
+
+
+# Test Strategy:
+1. End-to-end test of capture, save, and clipboard
+2. Performance test for <100ms capture
+3. Test error handling and user feedback
+4. Verify project structure supports new features
+5. Confirm no throwaway code or parallel MVP
+6. Test on multiple macOS versions
+7. Validate UI usability
+8. Ensure all dependencies are production-ready
+
+
+# Subtasks:
+## 1. Initialize Repository and Folder Structure [done]
+### Dependencies: None
+### Description: Create the Git repository and establish the folder structure for the long-term project, following best practices for Electron, React, and TypeScript.
+### Details:
+1. Initialize Git repository with .gitignore and .gitattributes
+2. Create main source directory structure (src/, tests/, docs/, etc.)
+3. Add README.md with project overview and setup instructions
+4. Establish folder hierarchy for components, utilities, assets, and configuration
+5. Add placeholder files to maintain folder structure in Git
+6. Ensure structure is ready for all future features
+
+
+## 2. Configure Package Management and Dependencies [done]
+### Dependencies: 1.1
+### Description: Set up package management and define core dependencies for the MVP and future features.
+### Details:
+1. Create package.json with required dependencies (Electron, React, TypeScript, etc.)
+2. Configure lockfiles for deterministic builds
+3. Document dependency update strategy
+4. Ensure all dependencies are production-ready
+
+
+## 3. Set Up Build System and Tooling [done]
+### Dependencies: 1.2
+### Description: Configure the build system, TypeScript, linting, and formatting for the long-term project.
+### Details:
+1. Configure build tool (webpack or vite)
+2. Set up TypeScript compilation
+3. Configure linting and formatting
+4. Set up simple testing framework
+5. Document build scripts in README
+
+
+## 4. Implement Core Screenshot Capture (macOS) [done]
+### Dependencies: 1.3
+### Description: Implement high-performance full screen capture for macOS using native APIs, as the foundation for all future capture features.
+### Details:
+1. Use Core Graphics for screenshot capture
+2. Optimize for <100ms response
+3. Handle permissions and errors
+4. Prepare code for future area/window capture
+
+
+## 5. Implement Basic File Saving [done]
+### Dependencies: 1.4
+### Description: Save screenshots to a user-configurable location with simple naming conventions, ready for future sidecar/metadata features.
+### Details:
+1. Save PNG files to user location
+2. Use timestamp-based filenames
+3. Handle file system errors
+4. Prepare for future sidecar/metadata integration
+
+
+## 6. Implement Automatic Clipboard Copy [done]
+### Dependencies: 1.4
+### Description: Automatically copy captured screenshots to the clipboard immediately after capture.
+### Details:
+1. Use Electron clipboard API
+2. Copy PNG data to clipboard
+3. Handle clipboard errors
+4. Test with common macOS apps
+
+
+## 7. Create Minimal UI for Capture and Settings [done]
+### Dependencies: 1.3
+### Description: Develop a minimal, functional UI for initiating capture and configuring save location, ready for future extension.
+### Details:
+1. Button to initiate capture
+2. Preferences/settings for save location
+3. Basic feedback for success/error
+4. Prepare UI for future tagging, filtering, and editing
+
+
+## 8. Package and Test MVP [done]
+### Dependencies: 1.5, 1.6, 1.7
+### Description: Package the MVP for macOS, test installation, and ensure all core features work reliably.
+### Details:
+1. Set up build and packaging process
+2. Test installation on clean macOS
+3. Create basic documentation
+4. Optimize app size and startup time
+5. Ensure all MVP features work as expected
+
+

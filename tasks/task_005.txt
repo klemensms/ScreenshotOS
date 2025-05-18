@@ -1,0 +1,175 @@
+# Task ID: 5
+# Title: Implement Basic Screenshot Editor
+# Status: pending
+# Dependencies: 2, 3, 4, 16
+# Priority: medium
+# Description: Create a simple editor with essential tools for cropping and basic annotations to allow users to modify captured screenshots using a non-destructive editing approach that stores all operations in sidecar files.
+# Details:
+1. Design and implement editor canvas component with layered architecture
+2. Create tool selection interface
+3. Implement non-destructive crop functionality with aspect ratio options
+4. Add basic annotation tools as separate layers:
+   - Pen/brush tool
+   - Text tool
+   - Basic shapes (rectangle, circle, arrow)
+   - Simple color picker
+5. Implement comprehensive undo/redo functionality that persists between sessions
+6. Create save/cancel actions that preserve edit history
+7. Add keyboard shortcuts for common editing actions
+8. Ensure all edits are stored separately from original image data in sidecar files
+9. Implement ability to modify or remove individual edits at any time
+10. Integrate with sidecar-based storage architecture for persisting edit operations
+11. Ensure all edit operations are fully serializable for sidecar storage
+12. Implement functionality to reconstruct edited images from original + sidecar data
+
+Editor component structure:
+```typescript
+interface EditorProps {
+  imageData: ImageData;
+  sidecarData?: EditOperation[];
+  onSave: (editOperations: EditOperation[]) => void; // Now only saves operations to sidecar
+  onCancel: () => void;
+}
+
+interface EditOperation {
+  id: string;
+  type: 'annotation' | 'crop' | 'text' | 'shape';
+  parameters: any;
+  timestamp: number;
+  visible: boolean;
+}
+
+const Editor: React.FC<EditorProps> = ({ imageData, onSave, onCancel, sidecarData }) => {
+  const [selectedTool, setSelectedTool] = useState<Tool>('pen');
+  const [color, setColor] = useState<string>('#ff0000');
+  const [lineWidth, setLineWidth] = useState<number>(2);
+  const [editOperations, setEditOperations] = useState<EditOperation[]>(sidecarData || []);
+  const [history, setHistory] = useState<EditOperation[][]>([editOperations]);
+  const [historyIndex, setHistoryIndex] = useState<number>(0);
+  
+  // Tool handlers, canvas setup, history management
+  // ...
+  
+  // Non-destructive rendering pipeline that applies operations to original image
+  const renderCanvas = useCallback(() => {
+    // Start with original image
+    // Apply each visible edit operation in sequence
+    // Render to canvas
+  }, [imageData, editOperations]);
+  
+  // Generate final image for preview only - actual edits stored in sidecar
+  const generateFinalImage = useCallback(() => {
+    // Create a new canvas
+    // Render original image with all operations applied
+    // Return the resulting ImageData
+  }, [imageData, editOperations]);
+  
+  return (
+    <div className="editor">
+      <ToolBar 
+        selectedTool={selectedTool} 
+        onSelectTool={setSelectedTool} 
+        color={color}
+        onColorChange={setColor}
+        lineWidth={lineWidth}
+        onLineWidthChange={setLineWidth}
+      />
+      <Canvas 
+        originalImageData={imageData}
+        editOperations={editOperations}
+        tool={selectedTool}
+        color={color}
+        lineWidth={lineWidth}
+        onChange={handleEditOperation}
+        onOperationUpdate={updateExistingOperation}
+      />
+      <LayersPanel
+        operations={editOperations}
+        onToggleVisibility={toggleOperationVisibility}
+        onRemoveOperation={removeOperation}
+        onReorderOperations={reorderOperations}
+      />
+      <ActionBar
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onSave={() => onSave(editOperations)} // Now only saves operations to sidecar
+        onCancel={onCancel}
+      />
+    </div>
+  );
+};
+```
+
+# Test Strategy:
+1. Unit tests for each editing tool
+2. Test undo/redo functionality across sessions
+3. Verify non-destructive image manipulation accuracy
+4. Test performance with large images and complex edit histories
+5. Usability testing for tool interactions
+6. Verify keyboard shortcuts
+7. Test save/cancel workflows with persistent edit history in sidecar files
+8. Validate image quality preservation
+9. Test individual edit modification and removal
+10. Verify correct restoration of edit state when reopening images with sidecar data
+11. Test serialization and deserialization of all edit operations to/from sidecar files
+12. Verify image reconstruction from original image + sidecar data matches expected output
+13. Test compatibility with the sidecar-based storage architecture
+14. Validate edit operations can be correctly interpreted after storage and retrieval
+
+# Subtasks:
+## 1. Implement Editor Canvas with Rendering Pipeline [pending]
+### Dependencies: None
+### Description: Create the foundational canvas component that will display and handle screenshot editing operations with an optimized rendering pipeline.
+### Details:
+Implement a canvas component using HTML5 Canvas API or WebGL for better performance. Create a layered architecture with separate layers for the base image, annotations, and UI elements. Implement efficient rendering pipeline with dirty region tracking to avoid full redraws. Ensure the canvas handles different image sizes and resolutions with proper scaling. Add support for high-DPI displays with appropriate pixel ratio adjustments. Performance considerations: Use requestAnimationFrame for smooth rendering, implement image downsampling for preview during operations, and optimize memory usage for large images. Testing criteria: Verify rendering performance with large images (>4000px), test canvas behavior across different screen sizes, and ensure proper scaling without quality loss.
+
+## 2. Implement Tool Selection and State Management [pending]
+### Dependencies: 5.1
+### Description: Create a robust state management system for the editor with tool selection UI and application-wide state handling.
+### Details:
+Design a state management architecture using a pattern like Redux or Context API to maintain editor state. Implement tool selection UI with visual feedback for active tools. Create a central state store containing current tool, tool settings, canvas state, and history information. Implement event handling system to connect user interactions with state changes. Add keyboard shortcuts for common operations and tool switching. Performance considerations: Minimize state updates to prevent unnecessary re-renders, use memoization for computed values, and implement efficient event delegation. Testing criteria: Verify state consistency across complex operations, test keyboard shortcuts in different browser environments, and ensure proper state isolation between multiple editor instances if applicable.
+
+## 3. Implement Non-Destructive Annotation Tools [pending]
+### Dependencies: 5.1, 5.2
+### Description: Develop core annotation tools including pen/brush, text insertion, and basic shapes (rectangle, circle, arrow) that store operations separately from the original image.
+### Details:
+Implement pen/brush tool with customizable stroke width, color, and opacity as separate operation layers. Create text annotation tool with font selection, size adjustment, and positioning capabilities that can be edited after placement. Add shape tools for rectangles, circles, and arrows with fill/stroke options as individual editable objects. Implement selection and manipulation of existing annotations at any time. Ensure all tools work with both mouse and touch inputs. Store each annotation as a separate operation with unique ID and metadata. Performance considerations: Use path simplification for freehand drawing, implement efficient hit detection for selection, and optimize text rendering with caching. Testing criteria: Test drawing precision at different zoom levels, verify text rendering quality, ensure consistent behavior across different input methods (mouse, touch, stylus), and validate that annotations can be individually modified or removed after creation.
+
+## 4. Implement Non-Destructive Crop Functionality with Aspect Ratio Support [pending]
+### Dependencies: 5.1, 5.2
+### Description: Create a crop tool that allows users to select regions of the image with optional aspect ratio constraints without permanently modifying the original image.
+### Details:
+Implement crop selection UI with draggable handles and visible overlay for non-selected areas. Add support for predefined aspect ratios (1:1, 16:9, 4:3, etc.) and custom ratio input. Create preview functionality to show crop result before applying. Implement the crop operation as a transformation that can be adjusted or removed at any time. Add rotation capability to straighten images before cropping. Store crop parameters separately from the image data to allow for future adjustments. Performance considerations: Use image slicing rather than creating new images when possible, implement efficient transform calculations, and optimize the preview rendering. Testing criteria: Test crop accuracy with pixel-perfect measurements, verify aspect ratio constraints are maintained, ensure the crop handles work correctly at canvas boundaries, and validate that crop settings can be modified after initial application.
+
+## 5. Implement Persistent History Management for Undo/Redo [pending]
+### Dependencies: 5.2, 5.3, 5.4
+### Description: Create a comprehensive history system that tracks all editor operations, enables undo/redo functionality, and persists between editing sessions.
+### Details:
+Design a command pattern implementation to encapsulate all editor operations with serializable format. Create a history stack that stores operations with their parameters and results that can be saved to persistent storage. Implement undo/redo methods that traverse the history stack and reapply or reverse operations. Add UI controls and keyboard shortcuts (Ctrl+Z, Ctrl+Y) for history navigation. Implement state snapshots for complex operations to improve performance. Create storage mechanism to save edit history with the image, allowing reopening with full edit history intact. Add functionality to export edit history in JSON format for backup or sharing. Performance considerations: Use memory-efficient representations of operations, implement operation batching for related actions, add garbage collection for old history items when stack grows too large, and optimize serialization/deserialization for persistent storage. Testing criteria: Verify correct state restoration after multiple undo/redo operations, test with complex sequences of different tools, ensure performance remains stable with large history stacks, and validate that edit history correctly restores when reopening saved images.
+
+## 6. Implement Layers Panel for Edit Management [pending]
+### Dependencies: 5.3, 5.4, 5.5
+### Description: Create a layers panel UI that allows users to view, reorder, toggle visibility, and modify individual edit operations.
+### Details:
+Design and implement a layers panel component that displays all edit operations in chronological or z-index order. Add functionality to toggle visibility of individual edits. Implement drag-and-drop reordering of operations to change their rendering order. Create edit capabilities for modifying parameters of existing operations (color, size, position, etc.). Add grouping functionality for related operations. Include layer naming and organization features. Implement layer search and filtering options for complex edits. Performance considerations: Use virtualized lists for large numbers of operations, implement efficient drag-and-drop with minimal re-renders, and optimize property editors for specific operation types. Testing criteria: Verify correct rendering order after reordering operations, test visibility toggling affects canvas immediately, ensure edit modifications correctly update the canvas, and validate that all operations remain individually accessible after saving and reopening.
+
+## 7. Implement Export and Serialization System [pending]
+### Dependencies: 5.3, 5.4, 5.5
+### Description: Create a system for exporting edited images with or without edit history and serializing edit operations for storage and sharing.
+### Details:
+Implement export functionality that generates final images with all visible edits applied. Create serialization format for edit operations that captures all necessary parameters for perfect reproduction. Add options for exporting in different formats (PNG, JPG, etc.) with quality settings. Implement import functionality for previously exported edit histories. Create versioning system for edit operation format to ensure forward compatibility. Add options for selective export of specific layers or operations. Implement edit history compression for efficient storage. Performance considerations: Use web workers for export processing to avoid UI blocking, implement progressive rendering for large exports, and optimize serialization format for size efficiency. Testing criteria: Verify exported images match canvas rendering exactly, test serialization/deserialization preserves all edit parameters accurately, ensure compatibility between different app versions, and validate that large edit histories can be efficiently stored and restored.
+
+## 8. Integrate with Sidecar-based Storage Architecture [pending]
+### Dependencies: 5.5, 5.7
+### Description: Integrate the editor with the sidecar-based storage architecture to store and retrieve edit operations from sidecar files.
+### Details:
+Implement adapters to connect the editor with the sidecar storage system. Create serialization/deserialization methods for all edit operations that ensure compatibility with the sidecar file format. Implement loading mechanism to reconstruct editor state from original image and sidecar data. Add save functionality that writes edit operations to sidecar files without modifying the original image. Ensure all edit operations are fully serializable with no dependencies on runtime state. Implement versioning for the sidecar data format to support future enhancements. Create fallback mechanisms for handling corrupted or incompatible sidecar data. Performance considerations: Optimize sidecar read/write operations to minimize file I/O, implement efficient serialization formats, and use streaming for large operation sets. Testing criteria: Verify all edit operations can be correctly serialized to and deserialized from sidecar files, test reconstruction of edited images from original + sidecar data, ensure compatibility with the sidecar storage system, and validate error handling for corrupted sidecar files.
+
+## 9. Implement Image Reconstruction from Original + Sidecar Data [pending]
+### Dependencies: 5.1, 5.3, 5.4, 5.8
+### Description: Create functionality to accurately reconstruct edited images by applying operations from sidecar files to original images.
+### Details:
+Implement a rendering pipeline that can apply serialized edit operations to original images. Create efficient algorithms for applying different operation types (crop, annotations, etc.) in the correct order. Implement caching mechanisms to avoid redundant calculations for frequently viewed images. Add preview generation with configurable quality/size for thumbnails and quick views. Ensure pixel-perfect reproduction of edits across different devices and screen resolutions. Create headless rendering capability for server-side or background processing. Performance considerations: Implement progressive rendering for large images, use WebAssembly for computation-heavy operations, optimize rendering path to minimize redundant calculations. Testing criteria: Verify reconstructed images match the original editor output pixel-by-pixel, test with complex combinations of different edit operations, ensure consistent results across different platforms and devices, and validate performance with large images and complex edit histories.
+

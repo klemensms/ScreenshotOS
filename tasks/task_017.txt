@@ -1,0 +1,134 @@
+# Task ID: 17
+# Title: Develop MVP Screenshot App
+# Status: pending
+# Dependencies: None
+# Priority: critical
+# Description: Develop a minimal viable product (MVP) version of the screenshot app that can run on macOS with just the essential features: take a screenshot, store it in a predefined location, and copy it to clipboard.
+# Details:
+This task represents the core MVP functionality and should be completed first to deliver essential features quickly.
+
+# Test Strategy:
+Focus on end-to-end testing of the core screenshot workflow to ensure reliability of the MVP functionality.
+
+# Subtasks:
+## 1. Create Basic App UI [pending]
+### Dependencies: None
+### Description: Create a basic, functional macOS app with a minimal UI that allows users to take screenshots and set a default save location.
+### Details:
+1. Create a minimal Electron app with a single window
+2. Implement a simple UI with a button to initiate screenshot capture
+3. Add a preferences section for setting the default save location
+4. Create a system tray/menu bar icon for quick access
+5. Implement basic error handling and feedback
+6. Focus on macOS-native look and feel
+7. Ensure the app starts quickly and feels responsive
+8. Keep dependencies to a minimum for faster development
+
+Acceptance Criteria:
+- App launches successfully on macOS
+- UI is minimal but functional with good usability
+- User can change save location from the UI
+- App appears in the menu bar for quick access
+- Interface responds immediately to user input
+
+## 2. Implement Core Screenshot Capture [pending]
+### Dependencies: None
+### Description: Implement the core screenshot capture functionality optimized for macOS, ensuring it performs quickly and reliably.
+### Details:
+1. Implement screenshot capture using native macOS APIs (Core Graphics)
+2. Create functions for different capture types (full screen only for MVP)
+3. Optimize for performance (<100ms from trigger to capture)
+4. Implement proper error handling for permission issues
+5. Add visual/audio feedback during capture
+6. Test on various macOS versions and screen resolutions
+7. Implement basic retry mechanism for failed captures
+
+Acceptance Criteria:
+- Screenshots are captured with high quality and accuracy
+- Capture performance is under 100ms on typical hardware
+- App properly requests and handles screen recording permissions
+- Error messages are clear and actionable
+- Capture works consistently across multiple test scenarios
+
+## 3. Implement Basic File Saving [pending]
+### Dependencies: 17.1, 17.2
+### Description: Create a basic file saving system that stores screenshots in a user-defined location with simple naming conventions.
+### Details:
+1. Implement file saving functionality to store screenshots in PNG format
+2. Create a simple system for generating filenames (date/time-based)
+3. Use the user-defined location from preferences for saving
+4. Implement proper error handling for file system issues (permissions, disk full, etc.)
+5. Add simple overwrite protection to avoid losing files
+6. Create fallback to Downloads folder if preferred location is unavailable
+7. Add basic logging for debugging file saving issues
+
+Acceptance Criteria:
+- Screenshots save correctly to the user-defined location
+- Filenames are unique and follow a consistent pattern
+- App handles file system errors gracefully with user feedback
+- Files save quickly without blocking the UI
+- Saved images match the quality of the captured screenshot
+
+## 4. Implement Automatic Clipboard Copy [pending]
+### Dependencies: 17.2
+### Description: Implement automatic clipboard copy functionality that immediately puts the captured screenshot into the system clipboard.
+### Details:
+1. Implement clipboard integration using Electron's clipboard API
+2. Ensure screenshot is copied to clipboard immediately after capture
+3. Support both image and file path formats in clipboard
+4. Optimize the clipboard copy process for performance
+5. Add error handling for clipboard access issues
+6. Test clipboard functionality with various receiving applications
+7. Ensure clipboard data persists after the app is closed
+
+Acceptance Criteria:
+- Screenshots are automatically copied to clipboard without user action
+- Clipboard copy happens within 100ms of capture completion
+- The clipboard image can be pasted into common applications (browsers, documents, messaging apps)
+- Clipboard operations don't block or slow down the UI
+- Clipboard functionality works reliably under various system conditions
+
+## 5. Package and Test MVP [pending]
+### Dependencies: 17.1, 17.2, 17.3, 17.4
+### Description: Package and test the MVP app for distribution, ensuring it works reliably on target macOS versions.
+### Details:
+1. Set up build and packaging process for macOS app
+2. Configure code signing if required
+3. Create installer or DMG package
+4. Test installation process on clean macOS systems
+5. Create basic documentation for users (README, installation instructions)
+6. Perform end-to-end testing of the complete workflow
+7. Optimize app size and startup time
+8. Verify app behaves correctly after system sleep/wake cycles
+
+Acceptance Criteria:
+- App packages successfully into a distributable format
+- Installation process is simple and reliable
+- App functions correctly after installation on clean systems
+- Documentation clearly explains how to use the app
+- App meets all core MVP requirements after installation
+
+## 6. Set Up Minimal MVP Project Structure [pending]
+### Dependencies: None
+### Description: Set up a minimal project structure specifically for the MVP version, focusing only on the core components needed for basic functionality.
+### Details:
+1. Create a basic Electron project structure with minimal components
+2. Set up only the essential directories needed for MVP:
+   - src/
+     - capture/ (for screenshot functionality)
+     - storage/ (for basic file saving)
+     - ui/ (for minimal interface)
+     - clipboard/ (for automatic clipboard integration)
+3. Configure minimal package.json with only essential dependencies
+4. Set up basic build configuration for quick development iteration
+5. Create minimal README with setup and usage instructions
+6. Configure simple linting for consistent code quality
+7. Focus only on macOS compatibility for this phase
+
+Acceptance Criteria:
+- Project structure is minimal but complete for MVP functionality
+- Build process is fast and optimized for development speed
+- Only essential dependencies are included
+- Project can be quickly set up on a new development machine
+- Structure allows for fast iteration on the MVP features
+

@@ -1,0 +1,96 @@
+# Task ID: 3
+# Title: Develop Basic Image Storage System
+# Status: pending
+# Dependencies: 1, 10
+# Priority: high
+# Description: Create a storage system to save screenshots locally using a sidecar-based architecture with configurable save locations, automatic naming conventions, and comprehensive metadata management.
+# Details:
+1. Create StorageManager class to handle saving and loading screenshots with sidecar files
+2. Implement configurable default save locations with fallback options
+3. Create intelligent naming system with customizable formats including date/time stamps
+4. Develop file system integration using Node.js fs module for both image and sidecar files
+5. Add support for multiple image formats (PNG default, JPG optional)
+6. Implement comprehensive metadata storage using sidecar files
+7. Create database schema for screenshot records optimized for efficient querying
+
+Sidecar Architecture:
+- Each image will have an accompanying sidecar file (.json) containing metadata
+- The sidecar file will share the same base name as the image file
+- The database will index and reference both files
+
+Database Schema:
+```sql
+CREATE TABLE screenshots (
+  id TEXT PRIMARY KEY,
+  filename TEXT NOT NULL,
+  path TEXT NOT NULL,
+  sidecar_path TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  format TEXT NOT NULL,
+  source TEXT,
+  indexed_metadata TEXT
+);
+```
+
+Naming convention implementation:
+```typescript
+function generateFilename(template: string): string {
+  const date = new Date();
+  return template
+    .replace('{date}', date.toISOString().split('T')[0])
+    .replace('{time}', date.toTimeString().split(' ')[0].replace(/:/g, '-'))
+    .replace('{timestamp}', Date.now().toString())
+    .replace('{random}', Math.random().toString(36).substring(2, 8));
+}
+```
+
+# Test Strategy:
+1. Unit tests for file saving and loading with sidecar files
+2. Verify naming convention functionality with various templates
+3. Test file system permissions and error handling for both image and sidecar files
+4. Validate database operations (insert, query, update) with sidecar metadata
+5. Performance testing for large images and complex metadata
+6. Test file format conversions
+7. Verify metadata extraction, indexing and persistence
+8. Test integration with the sidecar-based storage architecture
+9. Benchmark query performance with various metadata search patterns
+
+# Subtasks:
+## 1. Implement Storage Manager with File System Integration [pending]
+### Dependencies: None
+### Description: Create a storage manager class that handles file system operations for image storage, including directory creation, file writing, and error handling.
+### Details:
+Implement StorageManager class with methods: saveImage(imageData, format), deleteImage(imageId), getImagePath(imageId). Create directory structure with configurable root path. Handle file system errors and implement retry mechanism. Support common image formats (PNG, JPG, WEBP). Implement disk space checking before writes. Add logging for all file operations. Validation criteria: Successfully saves files to disk, handles duplicate filenames, properly manages file permissions, and gracefully handles I/O errors.
+
+## 2. Develop Naming Convention System with Templating [pending]
+### Dependencies: 3.1
+### Description: Create a flexible naming system that generates consistent filenames using configurable templates based on metadata and timestamps.
+### Details:
+Implement NameGenerator class with template parsing. Support variables like {timestamp}, {user}, {app}, {random}, {counter}. Create escaping mechanism for special characters. Implement collision detection and resolution. Add validation to prevent invalid filenames. Create unit tests for various template combinations. Validation criteria: Generates unique, filesystem-safe filenames, properly applies templates, handles special characters, and resolves naming conflicts.
+
+## 3. Design Database Schema and Implement CRUD Operations [pending]
+### Dependencies: 3.1, 3.2, 3.5
+### Description: Create database schema for image storage with sidecar file references and implement Create, Read, Update, Delete operations with proper transaction handling.
+### Details:
+Design tables: images (id, filename, path, sidecar_path, size, format, created_at, updated_at), image_metadata (image_id, key, value, is_indexed). Implement ImageRepository class with methods: createImage(), getImage(id), updateImage(id, data), deleteImage(id), queryImages(filters). Add transaction support for operations affecting both image and sidecar files. Implement connection pooling. Create database migration scripts. Add indexing for common query patterns. Validation criteria: Successfully performs all CRUD operations, maintains referential integrity between images and sidecar files, handles concurrent access, and properly manages transactions.
+
+## 4. Implement Metadata Management for Screenshots [pending]
+### Dependencies: 3.3
+### Description: Create a system to extract, store, and query metadata from screenshots using sidecar files, including source application, screen dimensions, and user context.
+### Details:
+Implement MetadataExtractor class to parse image headers. Create MetadataManager to store metadata in sidecar files and index critical metadata in database. Support metadata types: dimensions, color depth, source application, user info, device info, timestamp. Implement metadata search functionality with filtering. Add validation for metadata integrity. Create indexing strategy for efficient metadata queries. Implement batch metadata operations. Validation criteria: Correctly extracts metadata from various image formats, efficiently stores in sidecar files, indexes critical metadata in database, supports complex metadata queries, and maintains metadata integrity during image updates.
+
+## 5. Implement Sidecar File Management [pending]
+### Dependencies: 3.1, 3.2
+### Description: Create a system to manage sidecar files that store comprehensive metadata alongside image files.
+### Details:
+Implement SidecarManager class with methods: createSidecar(imageId, metadata), updateSidecar(imageId, metadata), readSidecar(imageId), deleteSidecar(imageId). Ensure sidecar files use the same base filename as their associated images with .json extension. Implement atomic write operations to prevent corruption. Add validation for sidecar file integrity. Create recovery mechanisms for orphaned sidecar files. Implement versioning for metadata schema changes. Validation criteria: Successfully creates, reads, updates and deletes sidecar files, maintains synchronization with image files, handles concurrent access, and recovers from error states.
+
+## 6. Develop Metadata Indexing System [pending]
+### Dependencies: 3.3, 3.4, 3.5
+### Description: Create an indexing system that selectively stores critical metadata in the database for efficient querying while keeping comprehensive metadata in sidecar files.
+### Details:
+Implement MetadataIndexer class to identify and extract query-critical metadata. Create configurable indexing rules based on metadata types. Implement database schema optimizations for indexed metadata. Create background indexing process for batch operations. Add re-indexing capability for schema changes. Implement search API with query planning based on indexed fields. Validation criteria: Correctly identifies and indexes critical metadata, significantly improves query performance for common search patterns, handles large metadata sets efficiently, and maintains consistency between database and sidecar files.
+

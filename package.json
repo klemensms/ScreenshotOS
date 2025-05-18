@@ -22,6 +22,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "screenshot-desktop": "^1.15.1",
+    "sharp": "^0.34.1",
     "typescript": "^5.8.3"
   },
   "devDependencies": {
@@ -53,7 +54,10 @@
     },
     "mac": {
       "category": "public.app-category.utilities",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "darkModeSupport": true,
       "icon": "build/icon.icns",
       "hardenedRuntime": true,

@@ -1,10 +1,11 @@
 // filepath: /Users/klemensstelk/Repo/ScreenshotOS/src/main.ts
-import { app, BrowserWindow, ipcMain, dialog, clipboard } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, clipboard, screen } from 'electron';
 import path from 'path';
 import screenshot from 'screenshot-desktop';
 import fs from 'fs';
 import { homedir } from 'os';
 import { loadStorageConfig, ensureSaveDirectory, saveStorageConfig } from './config/storage';
+import sharp from 'sharp';
 
 // Get screenshot save directory from config
 let screenshotSaveDir = loadStorageConfig().saveDirectory;
@@ -230,4 +231,104 @@ ipcMain.handle('select-directory', async () => {
     title: 'Select Screenshot Save Location'
   });
   return result;
+});
+
+// Overlay window reference and area selection promise
+let overlayWindow: BrowserWindow | null = null;
+let areaSelectionResolver: ((area: { x: number; y: number; width: number; height: number } | null) => void) | null = null;
+
+// Listen for area selection from overlay
+import { ipcMain as _ipcMain } from 'electron';
+_ipcMain.on('area-selection', (event, area) => {
+  if (areaSelectionResolver) {
+    if (area && area.cancel) {
+      areaSelectionResolver(null);
+    } else {
+      areaSelectionResolver(area);
+    }
+    areaSelectionResolver = null;
+  }
+  if (overlayWindow) {
+    overlayWindow.close();
+    overlayWindow = null;
+  }
+});
+
+async function selectAreaOnScreen(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+  return new Promise<{ x: number; y: number; width: number; height: number } | null>((resolve) => {
+    areaSelectionResolver = resolve;
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height, x, y } = primaryDisplay.bounds;
+    overlayWindow = new BrowserWindow({
+      width,
+      height,
+      x,
+      y,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+      hasShadow: false,
+      show: false, // Start hidden
+    });
+    overlayWindow.setIgnoreMouseEvents(false);
+    overlayWindow.loadFile(path.join(__dirname, 'areaOverlay.html'));
+    overlayWindow.once('ready-to-show', () => {
+      overlayWindow?.show();
+      overlayWindow?.focus();
+    });
+    overlayWindow.on('closed', () => {
+      overlayWindow = null;
+    });
+  });
+}
+
+// Remove the old 'capture-area' handler and replace it with a trigger from the renderer
+ipcMain.handle('trigger-area-overlay', async () => {
+  try {
+    // Show overlay and get area
+    const area = await selectAreaOnScreen();
+    return area;
+  } catch (error) {
+    console.error('Area overlay failed:', error);
+    return null;
+  }
+});
+
+// Update the 'capture-area' handler to only crop and save, given area
+ipcMain.handle('capture-area', async (event, area) => {
+  try {
+    if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
+      throw new Error('Invalid area coordinates');
+    }
+    // Capture the full screen
+    const imgBuffer = await screenshot({ format: 'png' });
+    // Crop the image to the selected area
+    const croppedBuffer = await sharp(imgBuffer)
+      .extract({ left: Math.round(area.x), top: Math.round(area.y), width: Math.round(area.width), height: Math.round(area.height) })
+      .png()
+      .toBuffer();
+    // Save the cropped screenshot
+    const filePath = await saveScreenshot(croppedBuffer);
+    // Copy to clipboard
+    const clipboardSuccess = copyToClipboard(croppedBuffer);
+    // Return base64 image and file path
+    return {
+      base64Image: croppedBuffer.toString('base64'),
+      savedFilePath: filePath,
+      clipboardCopySuccess: clipboardSuccess
+    };
+  } catch (error) {
+    console.error('Area capture failed:', error);
+    dialog.showErrorBox('Area Capture Failed', 'Failed to capture selected area. Please try again.');
+    return null;
+  }
 });

@@ -1,0 +1,162 @@
+# Task ID: 15
+# Title: Implement Scrolling Screenshot Capture
+# Status: pending
+# Dependencies: 2
+# Priority: low
+# Description: Add functionality to automatically capture entire webpages, documents, or scrollable content by stitching together multiple captures.
+# Details:
+1. Extend CaptureEngine with scrolling capture capability
+2. Implement detection of scrollable areas
+3. Create algorithm for capturing and stitching content
+4. Add progress indicator for scrolling captures
+5. Implement overlap detection to avoid duplicates
+6. Create UI for scrolling capture configuration
+7. Add error handling for failed captures
+
+Scrolling capture implementation:
+```typescript
+async function captureScrollableContent(
+  windowId: number,
+  options: {
+    maxScrolls?: number;
+    scrollDelay?: number;
+    overlapPixels?: number;
+    direction?: 'vertical' | 'horizontal' | 'both';
+  } = {}
+): Promise<Buffer> {
+  const {
+    maxScrolls = 20,
+    scrollDelay = 500,
+    overlapPixels = 200,
+    direction = 'vertical'
+  } = options;
+  
+  // Get target window
+  const targetWindow = BrowserWindow.fromId(windowId);
+  if (!targetWindow) throw new Error(`Window with ID ${windowId} not found`);
+  
+  // Capture initial viewport
+  const initialCapture = await captureWindow(windowId);
+  const captures = [initialCapture];
+  
+  // Get initial scroll position and content dimensions
+  const {
+    scrollHeight,
+    scrollWidth,
+    clientHeight,
+    clientWidth,
+    scrollTop,
+    scrollLeft
+  } = await targetWindow.webContents.executeJavaScript(`
+    ({
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      clientHeight: document.documentElement.clientHeight,
+      clientWidth: document.documentElement.clientWidth,
+      scrollTop: document.documentElement.scrollTop,
+      scrollLeft: document.documentElement.scrollLeft
+    })
+  `);
+  
+  // Calculate number of scrolls needed
+  const verticalScrolls = direction === 'vertical' || direction === 'both'
+    ? Math.ceil((scrollHeight - clientHeight) / (clientHeight - overlapPixels))
+    : 0;
+    
+  const horizontalScrolls = direction === 'horizontal' || direction === 'both'
+    ? Math.ceil((scrollWidth - clientWidth) / (clientWidth - overlapPixels))
+    : 0;
+  
+  // Limit scrolls to maxScrolls
+  const totalScrolls = Math.min(
+    maxScrolls,
+    verticalScrolls + horizontalScrolls
+  );
+  
+  // Perform scrolls and captures
+  let currentScrollTop = scrollTop;
+  let currentScrollLeft = scrollLeft;
+  
+  for (let i = 0; i < totalScrolls; i++) {
+    // Calculate next scroll position
+    if (direction === 'vertical' || (direction === 'both' && i % 2 === 0)) {
+      currentScrollTop += clientHeight - overlapPixels;
+    } else {
+      currentScrollLeft += clientWidth - overlapPixels;
+    }
+    
+    // Scroll to position
+    await targetWindow.webContents.executeJavaScript(`
+      window.scrollTo(${currentScrollLeft}, ${currentScrollTop});
+    `);
+    
+    // Wait for content to load after scroll
+    await new Promise(resolve => setTimeout(resolve, scrollDelay));
+    
+    // Capture current viewport
+    const capture = await captureWindow(windowId);
+    captures.push(capture);
+  }
+  
+  // Reset scroll position
+  await targetWindow.webContents.executeJavaScript(`
+    window.scrollTo(${scrollLeft}, ${scrollTop});
+  `);
+  
+  // Stitch images together
+  return stitchImages(captures, direction, overlapPixels);
+}
+
+function stitchImages(
+  captures: Buffer[],
+  direction: 'vertical' | 'horizontal' | 'both',
+  overlapPixels: number
+): Promise<Buffer> {
+  // Implement image stitching algorithm
+  // This would use canvas or image processing library to combine images
+  // with proper overlap detection and alignment
+  // ...
+}
+```
+
+# Test Strategy:
+1. Test scrolling capture on various websites and applications
+2. Verify stitching quality and alignment
+3. Test with different scroll directions
+4. Validate handling of dynamic content that changes on scroll
+5. Test performance with very long pages
+6. Verify overlap detection and duplicate removal
+7. Test error handling for interrupted scrolling
+8. Validate memory usage during large scrolling captures
+
+# Subtasks:
+## 1. Implement Scrollable Area Detection [pending]
+### Dependencies: None
+### Description: Develop algorithms to identify and analyze scrollable areas within a webpage or application
+### Details:
+Create a system to detect scrollable elements using DOM traversal for web pages and accessibility APIs for native applications. Implement detection for various scroll containers (main page, divs, iframes). Calculate viewport dimensions and total scrollable content size. Handle nested scrollable areas with priority determination. Performance considerations: Optimize detection to complete under 200ms, use element caching to avoid redundant calculations. Testing scenarios: Test with single-page scrolling, nested scrollable divs, dynamically loaded content, and various viewport sizes.
+
+## 2. Develop Automated Scrolling and Capture Sequence [pending]
+### Dependencies: 15.1
+### Description: Create a mechanism to programmatically scroll through content while capturing screenshots at appropriate intervals
+### Details:
+Implement smooth scrolling with configurable speed and pause intervals. Calculate optimal scroll step size based on viewport height with 20-30% overlap between captures. Add delay timers to allow content rendering before capture (configurable for different content types). Handle scroll events and track scroll position. Develop capture timing coordination to prevent tearing artifacts. Performance considerations: Minimize CPU usage during scrolling, handle scroll jank detection. Testing scenarios: Test with text-heavy pages, image galleries, infinite scroll pages, and pages with lazy-loaded content.
+
+## 3. Implement Image Stitching Algorithm [pending]
+### Dependencies: 15.2
+### Description: Develop an algorithm to combine multiple screenshot captures into a single cohesive image
+### Details:
+Create an image processing pipeline to merge sequential captures. Implement canvas-based stitching for web or native image processing libraries for desktop. Develop memory-efficient processing for large captures using streaming or tiling approaches. Optimize image format and compression for final output. Performance considerations: Implement progressive stitching to avoid memory issues with large captures, use Web Workers for browser implementations. Testing scenarios: Test with text documents, graphical content, mixed content types, and extremely long pages (>10000px).
+
+## 4. Develop Overlap Detection and Alignment System [pending]
+### Dependencies: 15.3
+### Description: Create algorithms to detect overlapping regions between captures and ensure proper alignment in the final image
+### Details:
+Implement feature detection in overlapping regions using techniques like SIFT or ORB. Create pixel-matching algorithms to find exact alignment points. Handle content that changes during scrolling with difference detection. Implement perspective correction for any skewing or distortion. Performance considerations: Use GPU acceleration where available, implement fallback simplified algorithms for low-end devices. Testing scenarios: Test with static content, animated content, pages with fixed elements, and responsive layouts that reflow during scrolling.
+
+## 5. Implement Progress Tracking and Error Handling [pending]
+### Dependencies: 15.2, 15.3, 15.4
+### Description: Develop systems to track capture progress, handle errors, and recover from failures during the screenshot process
+### Details:
+Create a progress tracking system with percentage completion and time remaining estimates. Implement error detection for scroll failures, rendering issues, and memory limitations. Develop recovery mechanisms for partial failures (retry logic, checkpoint saving). Add user feedback for long-running captures. Performance considerations: Implement low-overhead logging that doesn't impact capture performance. Testing scenarios: Test with network interruptions, low memory conditions, rapidly changing content, and browser/application crashes during capture.
+

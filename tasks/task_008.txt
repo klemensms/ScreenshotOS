@@ -1,0 +1,86 @@
+# Task ID: 8
+# Title: Implement Delayed Screenshot Timer
+# Status: pending
+# Dependencies: 2, 4
+# Priority: low
+# Description: Add functionality to set a countdown timer before capturing the screen, allowing users to prepare the content they want to capture.
+# Details:
+1. Extend CaptureEngine with delayed capture methods
+2. Create timer UI with countdown display
+3. Implement configurable delay options (3, 5, 10 seconds)
+4. Add visual and audio countdown feedback
+5. Allow cancellation during countdown
+6. Preserve capture settings during delay
+7. Add delay information to screenshot metadata
+
+Delayed capture implementation:
+```typescript
+async function captureWithDelay(
+  captureMethod: () => Promise<Buffer>,
+  delaySeconds: number,
+  onTick?: (remainingSeconds: number) => void
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    let remaining = delaySeconds;
+    const timer = setInterval(() => {
+      remaining--;
+      if (onTick) onTick(remaining);
+      
+      if (remaining <= 0) {
+        clearInterval(timer);
+        captureMethod()
+          .then(resolve)
+          .catch(reject);
+      }
+    }, 1000);
+    
+    // Return cancel function
+    return () => {
+      clearInterval(timer);
+      reject(new Error('Capture cancelled'));
+    };
+  });
+}
+```
+
+Timer UI component:
+```typescript
+const TimerOverlay: React.FC<{
+  seconds: number;
+  onComplete: () => void;
+  onCancel: () => void;
+}> = ({ seconds, onComplete, onCancel }) => {
+  const [remaining, setRemaining] = useState(seconds);
+  
+  useEffect(() => {
+    if (remaining <= 0) {
+      onComplete();
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      setRemaining(prev => prev - 1);
+      // Play tick sound
+      new Audio('assets/tick.mp3').play();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [remaining, onComplete]);
+  
+  return (
+    <div className="timer-overlay">
+      <div className="timer-display">{remaining}</div>
+      <button onClick={onCancel}>Cancel</button>
+    </div>
+  );
+};
+```
+
+# Test Strategy:
+1. Unit test timer functionality
+2. Verify countdown accuracy
+3. Test cancellation during countdown
+4. Validate visual and audio feedback
+5. Test with different delay durations
+6. Verify capture settings are preserved during delay
+7. Test edge cases (system sleep during countdown, application focus change)

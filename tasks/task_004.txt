@@ -1,0 +1,78 @@
+# Task ID: 4
+# Title: Create Basic UI Framework and Capture Interface
+# Status: pending
+# Dependencies: 1, 2
+# Priority: high
+# Description: Develop the minimal user interface for the application, including the main window, system tray integration, and basic capture controls.
+# Details:
+1. Design and implement main application window
+2. Create system tray icon and menu
+3. Implement hotkey registration for quick capture
+4. Design capture mode selection interface (full screen, window, area)
+5. Create overlay UI for area selection with handles
+6. Implement minimal capture feedback (visual/audio cues)
+7. Add basic settings panel for capture preferences
+
+UI Components to create:
+- MainWindow: Application container with navigation
+- SystemTray: Icon and context menu for quick actions
+- CaptureOverlay: Transparent window for selection
+- CaptureControls: Buttons for capture types
+- SettingsPanel: Basic configuration options
+
+Hotkey registration example:
+```typescript
+import { globalShortcut } from 'electron';
+
+function registerHotkeys() {
+  // Full screen capture
+  globalShortcut.register('CommandOrControl+Shift+3', () => {
+    captureEngine.captureFullScreen();
+  });
+  
+  // Area selection capture
+  globalShortcut.register('CommandOrControl+Shift+4', () => {
+    captureEngine.captureSelectedArea();
+  });
+  
+  // Window capture
+  globalShortcut.register('CommandOrControl+Shift+5', () => {
+    captureEngine.captureActiveWindow();
+  });
+}
+```
+
+# Test Strategy:
+1. UI component testing with React Testing Library
+2. Verify hotkey registration and handling
+3. Test system tray integration
+4. Usability testing for capture interface
+5. Verify visual feedback mechanisms
+6. Test keyboard navigation and accessibility
+7. Cross-platform UI consistency checks
+
+# Subtasks:
+## 1. Implement Main Application Window and Component Architecture [pending]
+### Dependencies: None
+### Description: Design and implement the main application window with a modular component architecture that supports all required functionality.
+### Details:
+Create a responsive main window using Electron's BrowserWindow. Implement a component-based architecture with React for UI elements. Design should include areas for settings, capture history, and editing options. Ensure consistent styling across platforms using CSS modules or styled-components. Implement dark/light theme support. Create reusable UI components (buttons, dropdowns, modals) with proper state management. Document component API for future extensions.
+
+## 2. Develop System Tray Integration and Context Menu [pending]
+### Dependencies: 4.1
+### Description: Implement platform-specific system tray integration with appropriate icons and context menu functionality.
+### Details:
+Use Electron's Tray API to add application icon to system tray. Create platform-specific icons (16x16, 32x32) for Windows, macOS, and Linux. Implement context menu with options for quick capture, show/hide app, preferences, and exit. Handle platform-specific behaviors (left/right click differences between Windows and macOS). Ensure tray persists when main window is closed. Add visual feedback when capture is in progress via tray icon. Test on all target platforms for native look and feel.
+
+## 3. Create Capture Overlay and Selection UI [pending]
+### Dependencies: 4.1
+### Description: Develop a transparent overlay system for screen capture with interactive selection tools and visual feedback.
+### Details:
+Implement transparent fullscreen overlay using Electron's transparent BrowserWindow. Create selection tools for rectangle, freeform, and window selection modes. Add visual guides (dimensions, magnifier) during selection process. Implement handles for resizing selection area. Add annotation tools that appear after selection (arrows, text, highlights). Ensure proper behavior across multiple monitors with different DPI settings. Optimize performance to prevent lag during selection drawing. Include keyboard shortcuts for precise adjustments.
+
+## 4. Implement Hotkey Registration and Management [pending]
+### Dependencies: 4.1, 4.2
+### Description: Create a system for registering, managing, and responding to global hotkeys across different platforms.
+### Details:
+Use Electron's globalShortcut module to register system-wide hotkeys. Implement configurable hotkeys for screen capture, region capture, and window capture. Create UI for customizing hotkey combinations with conflict detection. Handle platform-specific limitations and edge cases (macOS permissions, Linux desktop environments). Implement fallback mechanisms when preferred hotkeys are unavailable. Add visual and audio feedback when hotkeys are triggered. Create a hotkey service that other components can subscribe to. Ensure hotkeys work even when application is not in focus.
+

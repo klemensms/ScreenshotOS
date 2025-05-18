@@ -1,0 +1,67 @@
+# Task ID: 11
+# Title: Implement Clipboard Integration
+# Status: pending
+# Dependencies: 2, 3
+# Priority: critical
+# Description: Add functionality to automatically copy screenshots to the clipboard for immediate use in other applications. This is a core MVP feature that must happen instantly upon capture.
+# Details:
+1. Implement clipboard service for image data
+2. Ensure automatic clipboard copying is enabled by default as a core feature
+3. Optimize clipboard operations to complete within 100ms of screenshot capture
+4. Support different clipboard formats (PNG, JPG, etc.)
+5. Handle large images with optimized clipboard data
+6. Add clipboard history feature (optional)
+7. Implement clipboard monitoring for paste functionality
+
+Requirements:
+- Screenshots MUST be automatically copied to clipboard immediately after capture
+- Copy operation should complete within 100ms for optimal user experience
+- This is a core MVP feature, not an optional setting
+
+Clipboard service implementation:
+```typescript
+import { clipboard, nativeImage } from 'electron';
+
+class ClipboardService {
+  copyImageToClipboard(imageBuffer: Buffer, format: 'png' | 'jpg' = 'png'): boolean {
+    try {
+      const image = nativeImage.createFromBuffer(imageBuffer);
+      clipboard.writeImage(image);
+      return true;
+    } catch (error) {
+      console.error('Failed to copy image to clipboard:', error);
+      return false;
+    }
+  }
+  
+  copyImagePathToClipboard(imagePath: string): boolean {
+    try {
+      clipboard.writeText(imagePath);
+      return true;
+    } catch (error) {
+      console.error('Failed to copy path to clipboard:', error);
+      return false;
+    }
+  }
+  
+  getImageFromClipboard(): Buffer | null {
+    const image = clipboard.readImage();
+    return image.isEmpty() ? null : image.toPNG();
+  }
+  
+  hasImageInClipboard(): boolean {
+    return !clipboard.readImage().isEmpty();
+  }
+}
+```
+
+# Test Strategy:
+1. Test automatic clipboard copying occurs within 100ms of screenshot capture
+2. Verify screenshots are always copied to clipboard without user intervention
+3. Test clipboard operations with various image sizes to ensure performance targets are met
+4. Test copying different image formats to clipboard
+5. Validate clipboard history functionality
+6. Test paste from clipboard
+7. Verify clipboard format preservation
+8. Test clipboard integration across different applications
+9. Performance testing to ensure the 100ms requirement is consistently met

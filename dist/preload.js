@@ -19,14 +19,19 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
         }
         var validChannels = [
             'capture-fullscreen',
+            'capture-area',
             'save-screenshot',
             'load-storage-config',
             'save-storage-config',
-            'select-directory'
+            'select-directory',
+            'trigger-area-overlay'
         ];
         if (validChannels.includes(channel)) {
             return electron_1.ipcRenderer.invoke.apply(electron_1.ipcRenderer, __spreadArray([channel], args, false));
         }
         throw new Error("Unauthorized IPC channel: ".concat(channel));
+    },
+    sendAreaSelection: function (area) {
+        electron_1.ipcRenderer.send('area-selection', area);
     }
 });

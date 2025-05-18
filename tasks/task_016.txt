@@ -1,0 +1,90 @@
+# Task ID: 16
+# Title: Implement Sidecar-based Storage Architecture
+# Status: pending
+# Dependencies: 1, 17
+# Priority: critical
+# Description: Design and implement a storage architecture that keeps original screenshots in standard image formats while storing all edits, metadata, and tags in separate sidecar files. This architecture allows for efficient syncing via third-party cloud services like OneDrive and Dropbox without requiring a custom sync implementation. This will be implemented after the MVP which will use a simpler storage approach.
+# Details:
+This is a post-MVP feature that builds upon the simpler file storage implemented in the MVP. The sidecar architecture provides more advanced capabilities for syncing and metadata management once the core functionality is established.
+
+# Test Strategy:
+Testing should begin after the MVP is completed, building on the existing file storage tests but extending them to verify the sidecar functionality and cloud sync compatibility.
+
+# Subtasks:
+## 1. Design Sidecar File Format and Structure [pending]
+### Dependencies: None
+### Description: Define the format, structure, and content of sidecar files used to store metadata and edits separate from the original images.
+### Details:
+1. Research efficient, human-readable serialization formats (JSON, XML, etc.)
+2. Design schema for storing edit operations in a serializable format
+3. Define schema for metadata storage (application info, timestamps, etc.)
+4. Design versioning system for backward/forward compatibility
+5. Implement checksums or hash validation for file integrity
+6. Create reference linking system between original images and sidecar files
+7. Document the file format specification for future reference
+8. Benchmark format options for size, parse speed, and efficiency
+
+## 2. Implement File System Operations for Sidecar Architecture [pending]
+### Dependencies: 16.1
+### Description: Implement the core file system operations for managing original images and their associated sidecar files, ensuring they stay linked even when moved or renamed.
+### Details:
+1. Implement image saving with automatic sidecar file creation
+2. Create file system monitors to detect external changes to files
+3. Develop naming strategy to maintain links between images and sidecar files
+4. Create recovery mechanisms for reconnecting orphaned files
+5. Implement validation to ensure original images remain unmodified
+6. Create path handling for cross-platform path differences
+7. Implement file movement operations that maintain relationships
+8. Add cleanup utilities for orphaned or corrupted files
+
+## 3. Implement Serialization System for Edit Operations [pending]
+### Dependencies: 16.1, 16.2
+### Description: Create a serialization system that efficiently stores edit operations and metadata in sidecar files and can apply these operations to render the edited image.
+### Details:
+1. Develop serializable representations of all edit operations
+2. Implement serialization/deserialization for edit history
+3. Create rendering pipeline that applies operations to original image
+4. Optimize serialization format for minimal file size
+5. Implement lazy loading for efficient memory usage
+6. Add version conversion for backward compatibility
+7. Create diffing system to only save changed operations
+8. Implement compression for larger edit histories
+
+## 4. Implement Cloud Sync Compatibility [pending]
+### Dependencies: 16.2, 16.3
+### Description: Develop a system to make the storage architecture compatible with third-party cloud sync services like OneDrive, Dropbox, and Google Drive.
+### Details:
+1. Test file format compatibility with major cloud services
+2. Implement monitoring for externally synced changes
+3. Create conflict resolution for simultaneous edits on multiple devices
+4. Optimize sidecar file size for efficient syncing
+5. Add recovery mechanisms for sync failures or conflicts
+6. Create user interface for configuring sync locations
+7. Test sync behavior with various cloud services
+8. Document recommended sync configurations
+
+## 5. Implement Safety and Recovery Systems [pending]
+### Dependencies: 16.2, 16.3, 16.4
+### Description: Create a safety and recovery system that can handle file corruption, missing sidecar files, or damaged image files.
+### Details:
+1. Implement checksum verification for file integrity
+2. Create fallback rendering modes for missing or corrupted sidecar files
+3. Develop recovery tools for repairing missing links between files
+4. Implement backup strategies for critical sidecar data
+5. Add automatic error detection and notification system
+6. Create user-facing recovery interface for fixing issues
+7. Design logging system for diagnosing sync or corruption problems
+8. Develop file system scanning tool to find and repair orphaned files
+
+## 6. Transition from MVP Storage to Sidecar Architecture [pending]
+### Dependencies: 16.1, 16.2, 16.3
+### Description: Create a migration path from the simple MVP storage system to the more advanced sidecar-based architecture.
+### Details:
+1. Analyze the MVP storage implementation
+2. Design migration strategy for existing files
+3. Implement conversion tools to transform simple files to sidecar format
+4. Create fallback mechanisms to support both formats during transition
+5. Test migration process with various file types and states
+6. Document the migration process for users
+7. Implement user interface for managing the migration
+

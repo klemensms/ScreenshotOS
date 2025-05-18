@@ -1,0 +1,128 @@
+# Task ID: 12
+# Title: Implement Cloud Storage Integration
+# Status: pending
+# Dependencies: 3, 8
+# Priority: medium
+# Description: Ensure compatibility with third-party cloud storage services (Google Drive, Dropbox, and OneDrive) for syncing screenshots and sidecar files across devices.
+# Details:
+Instead of implementing our own cloud storage integration, we'll focus on ensuring our application works seamlessly when users save screenshots and sidecar files in folders synchronized by third-party cloud services:
+
+1. Create CloudStorageCompatibilityManager class to handle interactions with cloud-synced folders
+2. Implement path monitoring for detecting changes in cloud-synced folders
+3. Develop conflict resolution strategies for when the same file is modified on multiple devices
+4. Create recovery mechanisms for sync-related issues
+5. Add support for handling sync delays and partial synchronization
+6. Implement file locking or versioning to prevent data corruption
+7. Create UI for configuring which cloud service folders to monitor
+
+Cloud storage compatibility implementation:
+```typescript
+interface SyncedFolderMonitor {
+  startMonitoring(folderPath: string): Promise<void>;
+  stopMonitoring(folderPath: string): Promise<void>;
+  onFileChanged(callback: (filePath: string, changeType: 'added' | 'modified' | 'deleted') => void): void;
+  onSyncConflict(callback: (filePath: string, conflictDetails: any) => void): void;
+  isMonitoring(folderPath: string): boolean;
+}
+
+class CloudStorageCompatibilityManager {
+  private folderMonitor: SyncedFolderMonitor;
+  private sidecarManager: SidecarFileManager;
+  private syncedFolders: Set<string> = new Set();
+  
+  constructor(folderMonitor: SyncedFolderMonitor, sidecarManager: SidecarFileManager) {
+    this.folderMonitor = folderMonitor;
+    this.sidecarManager = sidecarManager;
+    
+    this.folderMonitor.onFileChanged(this.handleFileChange.bind(this));
+    this.folderMonitor.onSyncConflict(this.handleSyncConflict.bind(this));
+  }
+  
+  async addSyncedFolder(folderPath: string): Promise<void> {
+    if (this.syncedFolders.has(folderPath)) return;
+    
+    await this.folderMonitor.startMonitoring(folderPath);
+    this.syncedFolders.add(folderPath);
+    
+    // Initial scan of folder to detect existing screenshots and sidecar files
+    await this.scanFolder(folderPath);
+  }
+  
+  async removeSyncedFolder(folderPath: string): Promise<void> {
+    if (!this.syncedFolders.has(folderPath)) return;
+    
+    await this.folderMonitor.stopMonitoring(folderPath);
+    this.syncedFolders.delete(folderPath);
+  }
+  
+  private async handleFileChange(filePath: string, changeType: 'added' | 'modified' | 'deleted'): Promise<void> {
+    // Handle changes to screenshots or sidecar files
+    // Update application state accordingly
+    if (this.sidecarManager.isSidecarFile(filePath)) {
+      // Handle sidecar file changes
+      if (changeType === 'deleted') {
+        // Handle deleted sidecar file
+      } else {
+        // Load and process sidecar file
+        await this.sidecarManager.loadSidecarFile(filePath);
+      }
+    } else if (this.isScreenshotFile(filePath)) {
+      // Handle screenshot file changes
+      if (changeType === 'added' || changeType === 'modified') {
+        // Check if sidecar exists, if not create one
+        const sidecarPath = this.sidecarManager.getSidecarPathForImage(filePath);
+        if (!await this.fileExists(sidecarPath)) {
+          await this.sidecarManager.createSidecarForImage(filePath);
+        }
+      }
+    }
+  }
+  
+  private async handleSyncConflict(filePath: string, conflictDetails: any): Promise<void> {
+    // Implement conflict resolution strategy
+    // Could involve creating a backup, merging changes, or prompting user
+    
+    if (this.sidecarManager.isSidecarFile(filePath)) {
+      // Attempt to merge sidecar files or create conflict version
+      await this.resolveSidecarConflict(filePath, conflictDetails);
+    }
+  }
+  
+  private async scanFolder(folderPath: string): Promise<void> {
+    // Scan folder for screenshots and sidecar files
+    // Register them with the application
+  }
+  
+  private isScreenshotFile(filePath: string): boolean {
+    // Check if file is a supported image format
+    const ext = path.extname(filePath).toLowerCase();
+    return ['.png', '.jpg', '.jpeg', '.webp'].includes(ext);
+  }
+  
+  private async fileExists(filePath: string): Promise<boolean> {
+    try {
+      await fs.promises.access(filePath, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  
+  private async resolveSidecarConflict(filePath: string, conflictDetails: any): Promise<void> {
+    // Implement sidecar-specific conflict resolution
+    // This could involve merging metadata or creating a conflict version
+  }
+}
+```
+
+# Test Strategy:
+1. Test detection of changes in cloud-synced folders
+2. Verify proper handling of sidecar files in synced folders
+3. Test conflict resolution strategies with simulated sync conflicts
+4. Validate recovery from interrupted sync operations
+5. Test with various file naming patterns and folder structures
+6. Verify handling of permission issues in cloud-synced folders
+7. Test performance with large numbers of files
+8. Validate behavior when cloud service is temporarily unavailable
+9. Test cross-platform path handling for different cloud services
+10. Verify proper cleanup and recovery from partial synchronization

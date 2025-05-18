@@ -1,0 +1,102 @@
+# Task ID: 13
+# Title: Implement OCR Text Extraction
+# Status: pending
+# Dependencies: 3
+# Priority: low
+# Description: Add Optical Character Recognition (OCR) functionality to extract text from screenshots for searching and editing.
+# Details:
+1. Integrate OCR library (Tesseract.js recommended)
+2. Create OCRService class for text extraction
+3. Implement text extraction on screenshot capture/import
+4. Add text indexing for search functionality
+5. Create UI for viewing and editing extracted text
+6. Implement language detection and multi-language support
+7. Add pre-processing for improved OCR accuracy
+
+OCR service implementation:
+```typescript
+import { createWorker } from 'tesseract.js';
+
+class OCRService {
+  private worker: Tesseract.Worker | null = null;
+  private initialized = false;
+  
+  async initialize(language = 'eng'): Promise<void> {
+    if (this.initialized) return;
+    
+    this.worker = createWorker();
+    await this.worker.load();
+    await this.worker.loadLanguage(language);
+    await this.worker.initialize(language);
+    
+    this.initialized = true;
+  }
+  
+  async extractText(imageBuffer: Buffer): Promise<{
+    text: string;
+    confidence: number;
+    words: Array<{
+      text: string;
+      confidence: number;
+      bbox: { x0: number; y0: number; x1: number; y1: number };
+    }>;
+  }> {
+    if (!this.initialized || !this.worker) {
+      await this.initialize();
+    }
+    
+    const result = await this.worker!.recognize(imageBuffer);
+    
+    return {
+      text: result.data.text,
+      confidence: result.data.confidence,
+      words: result.data.words
+    };
+  }
+  
+  async detectLanguage(imageBuffer: Buffer): Promise<string> {
+    // Implement language detection logic
+    // This could use a small portion of the image to detect language
+    return 'eng';
+  }
+  
+  async terminate(): Promise<void> {
+    if (this.worker) {
+      await this.worker.terminate();
+      this.worker = null;
+      this.initialized = false;
+    }
+  }
+}
+```
+
+Database extension for OCR data:
+```sql
+ALTER TABLE screenshots ADD COLUMN ocr_text TEXT;
+ALTER TABLE screenshots ADD COLUMN ocr_confidence REAL;
+
+CREATE TABLE ocr_words (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  screenshot_id TEXT NOT NULL,
+  word TEXT NOT NULL,
+  confidence REAL NOT NULL,
+  x0 INTEGER NOT NULL,
+  y0 INTEGER NOT NULL,
+  x1 INTEGER NOT NULL,
+  y1 INTEGER NOT NULL,
+  FOREIGN KEY (screenshot_id) REFERENCES screenshots (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_ocr_words_screenshot ON ocr_words (screenshot_id);
+CREATE INDEX idx_ocr_words_word ON ocr_words (word);
+```
+
+# Test Strategy:
+1. Test OCR accuracy with various image types
+2. Verify text extraction performance
+3. Test language detection and multi-language support
+4. Validate word bounding box accuracy
+5. Test search functionality using extracted text
+6. Verify database indexing and query performance
+7. Test pre-processing improvements for OCR accuracy
+8. Validate memory usage during OCR processing

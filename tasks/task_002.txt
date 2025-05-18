@@ -1,0 +1,96 @@
+# Task ID: 2
+# Title: Implement Basic Screen Capture Engine
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Develop the core screen capture functionality to support full screen, active window, and custom area selection captures, with initial focus on optimizing for macOS. Include automatic clipboard copying of any captured screenshot.
+# Details:
+1. Create CaptureEngine class with methods for different capture types:
+   - captureFullScreen()
+   - captureActiveWindow()
+   - captureSelectedArea()
+
+2. Implement screen detection using Electron's desktopCapturer API
+3. Create selection overlay for custom area capture with resizable bounds, ensuring zero perceptible delay when triggered by hotkey
+4. Implement window detection and edge recognition for window captures
+5. Add basic error handling for capture failures
+6. Optimize capture process for performance (< 100ms response time), prioritizing macOS
+7. Return captured image data in standard format (PNG buffer)
+8. Leverage Core Graphics APIs on macOS for optimal performance
+9. Implement automatic clipboard integration to copy all captured screenshots to the system clipboard
+
+Code example for captureFullScreen():
+```typescript
+async function captureFullScreen(): Promise<Buffer> {
+  const sources = await desktopCapturer.getSources({ types: ['screen'] });
+  const mainSource = sources[0]; // Primary display
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      mandatory: {
+        chromeMediaSource: 'desktop',
+        chromeMediaSourceId: mainSource.id
+      }
+    }
+  });
+  // Process stream to image buffer
+  // ...
+  return imageBuffer;
+}
+```
+
+# Test Strategy:
+1. Unit tests for each capture method
+2. Performance testing to ensure capture speed meets < 100ms requirement on macOS
+3. Integration tests with mock display configurations
+4. Test capture quality and accuracy
+5. Verify error handling with simulated failure scenarios
+6. Test on different screen resolutions and pixel densities
+7. Measure and optimize UI response time for area selection overlay
+8. Benchmark Core Graphics performance on various macOS hardware configurations
+9. Verify clipboard integration works correctly across all capture types
+10. Test clipboard functionality with various image sizes and formats
+
+# Subtasks:
+## 1. Implement Full Screen Capture Functionality [pending]
+### Dependencies: None
+### Description: Develop the core functionality to capture the entire screen with initial focus on macOS optimization.
+### Details:
+Implement platform-specific APIs with priority on CoreGraphics for macOS to capture full screen content. Optimize specifically for macOS to achieve <100ms capture time. Ensure image data is properly converted to a standard format (e.g., RGBA bitmap). Include multi-monitor support with proper monitor identification. Test with various screen resolutions, color depths, and refresh rates on macOS hardware.
+
+## 2. Develop Active Window Capture [pending]
+### Dependencies: 2.1
+### Description: Create functionality to identify and capture only the currently active window, optimized for macOS.
+### Details:
+Implement window handle detection to identify the foreground window on macOS using CoreGraphics and Accessibility APIs. Use platform APIs to determine window boundaries and capture only that region. Handle window decorations consistently. Implement proper DPI awareness for high-resolution displays including Retina. Test with various application types including standard, fullscreen, and borderless windows on macOS.
+
+## 3. Create Custom Area Selection UI [pending]
+### Dependencies: 2.1
+### Description: Develop an overlay UI that allows users to select a custom region of the screen for capture with zero perceptible delay.
+### Details:
+Implement a semi-transparent overlay that displays over the screen with zero perceptible delay when triggered by hotkey. Pre-load and optimize the overlay to appear instantly. Create mouse event handling for drawing selection rectangle. Add visual feedback (dimensions, magnifier) during selection. Ensure the overlay works across multiple monitors. Implement keyboard shortcuts for precise adjustments. Test response time specifically on macOS to ensure instantaneous appearance.
+
+## 4. Optimize Capture Performance for macOS [pending]
+### Dependencies: 2.1, 2.2, 2.3
+### Description: Enhance the capture engine for optimal performance on macOS hardware configurations.
+### Details:
+Leverage Core Graphics APIs for maximum performance on macOS. Implement memory pooling to reduce allocations during capture. Add threading model to prevent UI freezing during capture. Optimize for hardware acceleration on Apple Silicon and Intel Macs. Implement frame differencing to reduce processing when capturing video. Benchmark on various macOS hardware configurations to ensure <100ms capture time. Profile memory usage to prevent leaks during extended use.
+
+## 5. Implement Error Handling and Edge Cases [pending]
+### Dependencies: 2.1, 2.2, 2.3, 2.4
+### Description: Develop robust error handling for the capture engine and address edge cases on macOS.
+### Details:
+Create comprehensive error reporting system with meaningful user feedback. Handle permission issues specific to macOS (screen recording permissions, accessibility permissions). Implement fallback methods when primary capture APIs fail. Address edge cases: screen resolution changes during capture, disconnected monitors, macOS sleep/wake transitions, secure windows that block capture. Create automated tests for various failure scenarios and verify graceful degradation on macOS.
+
+## 6. Optimize Area Selection Trigger Response Time [pending]
+### Dependencies: 2.3
+### Description: Ensure the area selection overlay appears with zero perceptible delay when triggered by hotkey.
+### Details:
+Pre-initialize selection overlay components at application startup. Implement efficient event listeners for hotkey detection. Minimize render operations when displaying the overlay. Use macOS-specific optimizations for window creation and transparency. Measure and optimize the time between hotkey press and overlay appearance. Target <16ms (one frame) response time for perceived instantaneous reaction. Test with various system loads to ensure consistent performance.
+
+## 7. Implement Clipboard Integration [pending]
+### Dependencies: 2.1, 2.2, 2.3
+### Description: Develop functionality to automatically copy all captured screenshots to the system clipboard.
+### Details:
+Implement platform-specific clipboard APIs with focus on macOS. Create a ClipboardManager class to handle copying of image data to the system clipboard. Ensure clipboard operations occur immediately after capture completion. Support multiple image formats in clipboard (PNG, JPEG, native formats). Handle large image sizes efficiently to prevent performance issues. Implement error handling for clipboard access failures. Test clipboard integration with all capture types (full screen, active window, custom area). Verify clipboard contents are accessible by other applications after capture.
+

@@ -9,6 +9,7 @@ const path_1 = __importDefault(require("path"));
 const screenshot_desktop_1 = __importDefault(require("screenshot-desktop"));
 const fs_1 = __importDefault(require("fs"));
 const storage_1 = require("./config/storage");
+const sharp_1 = __importDefault(require("sharp"));
 // Get screenshot save directory from config
 let screenshotSaveDir = (0, storage_1.loadStorageConfig)().saveDirectory;
 // Ensure the save directory exists
@@ -197,4 +198,102 @@ electron_1.ipcMain.handle('select-directory', async () => {
         title: 'Select Screenshot Save Location'
     });
     return result;
+});
+// Overlay window reference and area selection promise
+let overlayWindow = null;
+let areaSelectionResolver = null;
+// Listen for area selection from overlay
+const electron_2 = require("electron");
+electron_2.ipcMain.on('area-selection', (event, area) => {
+    if (areaSelectionResolver) {
+        if (area && area.cancel) {
+            areaSelectionResolver(null);
+        }
+        else {
+            areaSelectionResolver(area);
+        }
+        areaSelectionResolver = null;
+    }
+    if (overlayWindow) {
+        overlayWindow.close();
+        overlayWindow = null;
+    }
+});
+async function selectAreaOnScreen() {
+    return new Promise((resolve) => {
+        areaSelectionResolver = resolve;
+        const primaryDisplay = electron_1.screen.getPrimaryDisplay();
+        const { width, height, x, y } = primaryDisplay.bounds;
+        overlayWindow = new electron_1.BrowserWindow({
+            width,
+            height,
+            x,
+            y,
+            frame: false,
+            transparent: true,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            resizable: false,
+            movable: false,
+            focusable: true,
+            webPreferences: {
+                preload: path_1.default.join(__dirname, 'preload.js'),
+                nodeIntegration: false,
+                contextIsolation: true,
+            },
+            hasShadow: false,
+            show: false, // Start hidden
+        });
+        overlayWindow.setIgnoreMouseEvents(false);
+        overlayWindow.loadFile(path_1.default.join(__dirname, 'areaOverlay.html'));
+        overlayWindow.once('ready-to-show', () => {
+            overlayWindow?.show();
+            overlayWindow?.focus();
+        });
+        overlayWindow.on('closed', () => {
+            overlayWindow = null;
+        });
+    });
+}
+// Remove the old 'capture-area' handler and replace it with a trigger from the renderer
+electron_1.ipcMain.handle('trigger-area-overlay', async () => {
+    try {
+        // Show overlay and get area
+        const area = await selectAreaOnScreen();
+        return area;
+    }
+    catch (error) {
+        console.error('Area overlay failed:', error);
+        return null;
+    }
+});
+// Update the 'capture-area' handler to only crop and save, given area
+electron_1.ipcMain.handle('capture-area', async (event, area) => {
+    try {
+        if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
+            throw new Error('Invalid area coordinates');
+        }
+        // Capture the full screen
+        const imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
+        // Crop the image to the selected area
+        const croppedBuffer = await (0, sharp_1.default)(imgBuffer)
+            .extract({ left: Math.round(area.x), top: Math.round(area.y), width: Math.round(area.width), height: Math.round(area.height) })
+            .png()
+            .toBuffer();
+        // Save the cropped screenshot
+        const filePath = await saveScreenshot(croppedBuffer);
+        // Copy to clipboard
+        const clipboardSuccess = copyToClipboard(croppedBuffer);
+        // Return base64 image and file path
+        return {
+            base64Image: croppedBuffer.toString('base64'),
+            savedFilePath: filePath,
+            clipboardCopySuccess: clipboardSuccess
+        };
+    }
+    catch (error) {
+        console.error('Area capture failed:', error);
+        electron_1.dialog.showErrorBox('Area Capture Failed', 'Failed to capture selected area. Please try again.');
+        return null;
+    }
 });
