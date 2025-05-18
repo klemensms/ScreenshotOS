@@ -24,6 +24,6 @@ node_modules/
 # OS specific
 .DS_Store
 
-# Task files
-tasks.json
-tasks/ 
+dist-electron/ScreenshotOS-1.0.0-arm64.dmg
+dist-electron/ScreenshotOS-1.0.0-arm64-mac.zip
+dist-electron/mac-arm64/ScreenshotOS.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework
