@@ -32,6 +32,9 @@ ScreenshotOS is developed as a single product and codebase. The initial MVP (Min
 - **Window captures**: Select and capture only the active window with automatic edge detection
 - **Custom area selection**: Draw a selection to capture specific regions with zero perceptible delay
 - **Multiple monitor support**: Seamlessly capture across multiple displays with intelligent detection
+- **Single monitor selection**: Easily select and capture only one specific monitor when multiple are connected
+- **Area selection memory**: Remember previously selected areas and preselect them for subsequent captures
+- **Smart area suggestions**: Automatically detect and highlight UI elements, windows, or natural frames during area selection
 - **Delayed screenshot timer**: Set a countdown to prepare the screen before capture (3, 5, 10 seconds)
 - **macOS optimization**: Leverage Core Graphics and native APIs for optimal performance
 - **Application detection**: Automatically identify and record the application being captured
@@ -173,7 +176,9 @@ ScreenshotOS is developed as a single product and codebase. The initial MVP (Min
 1. **High-Performance Capture Flow**
    - User presses hotkey/launches app (response <100ms)
    - Selects capture mode (full screen, window, area, etc.)
-   - For area selection, overlay appears instantly (<16ms)
+   - If multiple monitors, can choose to capture all screens or select a specific monitor
+   - For area selection, overlay appears instantly (<16ms) with previously used selection preselected
+   - If hovering over windows/UI elements, the app shows smart suggestions for capturing natural frames
    - Captures screenshot with visual/audio confirmation
    - Application information is automatically detected and recorded
    - Quick tag bar appears for immediate categorization
@@ -236,8 +241,10 @@ ScreenshotOS is developed as a single product and codebase. The initial MVP (Min
 1. **High-Performance Capture Engine**
    - macOS Core Graphics integration for optimal performance
    - Screen detection and rendering module
-   - Multi-monitor management system
+   - Multi-monitor management system with individual monitor selection
    - Window identification service
+   - Natural frame detection for smart area suggestions
+   - Selection memory system for preserving and recalling previous selections
    - Application detection and metadata collection
    - Timer and scheduled capture controller
 

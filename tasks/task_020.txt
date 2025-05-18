@@ -1,0 +1,5 @@
+- [x] **COMPLETED: Migrated from sharp to pure JS image processing (jimp) for cropping screenshots.**
+  - Successfully replaced Sharp with Jimp for all image processing operations.
+  - Implemented area selection and cropping functionality using Jimp.
+  - Removed Sharp dependency from package.json.
+  - Tested the performance and functionality of the new implementation.

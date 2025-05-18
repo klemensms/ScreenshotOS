@@ -94,3 +94,58 @@ Pre-initialize selection overlay components at application startup. Implement ef
 ### Details:
 Implement platform-specific clipboard APIs with focus on macOS. Create a ClipboardManager class to handle copying of image data to the system clipboard. Ensure clipboard operations occur immediately after capture completion. Support multiple image formats in clipboard (PNG, JPEG, native formats). Handle large image sizes efficiently to prevent performance issues. Implement error handling for clipboard access failures. Test clipboard integration with all capture types (full screen, active window, custom area). Verify clipboard contents are accessible by other applications after capture.
 
+## 8. Implement Area Selection Memory Function [pending]
+### Dependencies: None
+### Description: Add functionality to remember the last selected area and preselect it when the area selection tool is opened again. Allow users to adjust or dismiss the preselection when starting a new selection.
+### Details:
+1. Create a storage mechanism to save the last selected area coordinates (x, y, width, height)
+2. When opening the area selection overlay, check if there is a saved selection
+3. If a saved selection exists, preselect that area with a visual indicator
+4. Add logic to detect when a user starts making a new selection and dismiss the preselection
+5. Update the selection memory when a new area is successfully captured
+6. Ensure the memory persists between application sessions using the config system
+7. Add UI element to explicitly clear the saved selection if desired
+
+## 9. Implement Smart Area Suggestions [pending]
+### Dependencies: None
+### Description: Implement smart area suggestion that automatically detects and highlights UI elements, windows, or natural frames that the user might want to capture when hovering over them during area selection.
+### Details:
+1. Implement window detection on macOS using Accessibility APIs to identify application windows under the mouse cursor
+2. Create a visual highlight system that shows detected areas without interfering with selection
+3. Add hover detection to highlight windows or UI elements as the mouse moves
+4. Create algorithms to detect natural frames (panels, cards, content areas) within applications
+5. Implement a quick-select mechanism to let users click once to select a detected element
+6. Ensure snapping behavior to align with detected element boundaries
+7. Add preference toggle to enable/disable smart suggestions
+8. Optimize detection algorithms for performance to maintain zero perceptible delay
+9. Add visual indicators that clearly distinguish between user selection and smart suggestions
+
+## 10. Implement Multi-Screen Capture [pending]
+### Dependencies: None
+### Description: Enhance the full screen capture functionality to detect and capture all connected displays rather than just the primary display.
+### Details:
+1. Implement multi-monitor detection using Electron's screen API to enumerate all connected displays
+2. Update the captureFullScreen function to capture all screens simultaneously
+3. Create a composite image that represents all displays in their relative positions
+4. Add proper handling for displays with different resolutions and pixel densities
+5. Ensure coordinate systems are properly translated between displays
+6. Optimize capture performance to maintain <100ms requirement even with multiple high-resolution displays
+7. Create proper visual indicators in the UI when multiple displays are detected
+8. Add error handling for cases where displays are disconnected during capture
+9. Test thoroughly with various multi-monitor configurations
+
+## 11. Implement Single Monitor Selection Capture [pending]
+### Dependencies: None
+### Description: Add functionality to allow users to select and capture only one specific display when multiple monitors are connected.
+### Details:
+1. Create a visual monitor selection UI that appears before capture
+2. Display a preview thumbnail of each monitor with identifying information
+3. Implement monitor-specific capture using screen IDs from Electron's screen API
+4. Add hotkeys for quick selection of specific monitors (e.g., Alt+1, Alt+2)
+5. Store the last selected monitor as the default for future captures
+6. Ensure proper error handling if selected monitor becomes unavailable
+7. Add monitor detection status to the application status bar/tray
+8. Create proper coordinate translation between global and monitor-specific coordinates
+9. Optimize the preview generation to show real-time content without performance impact
+10. Allow users to name/label monitors for easier identification
+

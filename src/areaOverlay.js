@@ -2,6 +2,11 @@ let isSelecting = false;
 let startX = 0, startY = 0, endX = 0, endY = 0;
 const selection = document.getElementById('selection');
 
+console.log('Area overlay script loaded');
+
+// Check if we have access to electronAPI
+console.log('electronAPI available:', !!window.electronAPI);
+
 function updateSelectionRect() {
   const x = Math.min(startX, endX);
   const y = Math.min(startY, endY);
@@ -40,7 +45,13 @@ document.addEventListener('mouseup', (e) => {
   const height = Math.abs(startY - endY);
   if (width > 5 && height > 5) {
     // Send coordinates to main process
-    window.electronAPI && window.electronAPI.sendAreaSelection({ x, y, width, height });
+    console.log('Selection complete:', { x, y, width, height });
+    if (window.electronAPI) {
+      console.log('Calling electronAPI.sendAreaSelection()');
+      window.electronAPI.sendAreaSelection({ x, y, width, height });
+    } else {
+      console.error('window.electronAPI is not available!');
+    }
   }
   setTimeout(() => { window.close(); }, 100);
 });
@@ -53,9 +64,3 @@ document.addEventListener('keydown', (e) => {
     setTimeout(() => { window.close(); }, 50);
   }
 });
-
-// Patch: support both window.electronAPI and window.electron for overlay
-window.electronAPI = window.electron;
-
-// For Electron preload: expose sendAreaSelection
-// In preload.js, expose: contextBridge.exposeInMainWorld('electronAPI', { sendAreaSelection: ... })

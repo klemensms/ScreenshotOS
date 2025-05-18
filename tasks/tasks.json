@@ -177,6 +177,42 @@
           ],
           "details": "Implement platform-specific clipboard APIs with focus on macOS. Create a ClipboardManager class to handle copying of image data to the system clipboard. Ensure clipboard operations occur immediately after capture completion. Support multiple image formats in clipboard (PNG, JPEG, native formats). Handle large image sizes efficiently to prevent performance issues. Implement error handling for clipboard access failures. Test clipboard integration with all capture types (full screen, active window, custom area). Verify clipboard contents are accessible by other applications after capture.",
           "status": "pending"
+        },
+        {
+          "id": 8,
+          "title": "Implement Area Selection Memory Function",
+          "description": "Add functionality to remember the last selected area and preselect it when the area selection tool is opened again. Allow users to adjust or dismiss the preselection when starting a new selection.",
+          "details": "1. Create a storage mechanism to save the last selected area coordinates (x, y, width, height)\n2. When opening the area selection overlay, check if there is a saved selection\n3. If a saved selection exists, preselect that area with a visual indicator\n4. Add logic to detect when a user starts making a new selection and dismiss the preselection\n5. Update the selection memory when a new area is successfully captured\n6. Ensure the memory persists between application sessions using the config system\n7. Add UI element to explicitly clear the saved selection if desired",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 2
+        },
+        {
+          "id": 9,
+          "title": "Implement Smart Area Suggestions",
+          "description": "Implement smart area suggestion that automatically detects and highlights UI elements, windows, or natural frames that the user might want to capture when hovering over them during area selection.",
+          "details": "1. Implement window detection on macOS using Accessibility APIs to identify application windows under the mouse cursor\n2. Create a visual highlight system that shows detected areas without interfering with selection\n3. Add hover detection to highlight windows or UI elements as the mouse moves\n4. Create algorithms to detect natural frames (panels, cards, content areas) within applications\n5. Implement a quick-select mechanism to let users click once to select a detected element\n6. Ensure snapping behavior to align with detected element boundaries\n7. Add preference toggle to enable/disable smart suggestions\n8. Optimize detection algorithms for performance to maintain zero perceptible delay\n9. Add visual indicators that clearly distinguish between user selection and smart suggestions",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 2
+        },
+        {
+          "id": 10,
+          "title": "Implement Multi-Screen Capture",
+          "description": "Enhance the full screen capture functionality to detect and capture all connected displays rather than just the primary display.",
+          "details": "1. Implement multi-monitor detection using Electron's screen API to enumerate all connected displays\n2. Update the captureFullScreen function to capture all screens simultaneously\n3. Create a composite image that represents all displays in their relative positions\n4. Add proper handling for displays with different resolutions and pixel densities\n5. Ensure coordinate systems are properly translated between displays\n6. Optimize capture performance to maintain <100ms requirement even with multiple high-resolution displays\n7. Create proper visual indicators in the UI when multiple displays are detected\n8. Add error handling for cases where displays are disconnected during capture\n9. Test thoroughly with various multi-monitor configurations",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 2
+        },
+        {
+          "id": 11,
+          "title": "Implement Single Monitor Selection Capture",
+          "description": "Add functionality to allow users to select and capture only one specific display when multiple monitors are connected.",
+          "details": "1. Create a visual monitor selection UI that appears before capture\n2. Display a preview thumbnail of each monitor with identifying information\n3. Implement monitor-specific capture using screen IDs from Electron's screen API\n4. Add hotkeys for quick selection of specific monitors (e.g., Alt+1, Alt+2)\n5. Store the last selected monitor as the default for future captures\n6. Ensure proper error handling if selected monitor becomes unavailable\n7. Add monitor detection status to the application status bar/tray\n8. Create proper coordinate translation between global and monitor-specific coordinates\n9. Optimize the preview generation to show real-time content without performance impact\n10. Allow users to name/label monitors for easier identification",
+          "status": "pending",
+          "dependencies": [],
+          "parentTaskId": 2
         }
       ]
     },

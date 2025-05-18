@@ -9,7 +9,7 @@ const path_1 = __importDefault(require("path"));
 const screenshot_desktop_1 = __importDefault(require("screenshot-desktop"));
 const fs_1 = __importDefault(require("fs"));
 const storage_1 = require("./config/storage");
-const sharp_1 = __importDefault(require("sharp"));
+const jimp_helper_1 = require("./utils/jimp-helper");
 // Get screenshot save directory from config
 let screenshotSaveDir = (0, storage_1.loadStorageConfig)().saveDirectory;
 // Ensure the save directory exists
@@ -205,25 +205,35 @@ let areaSelectionResolver = null;
 // Listen for area selection from overlay
 const electron_2 = require("electron");
 electron_2.ipcMain.on('area-selection', (event, area) => {
+    console.log('Received area selection event:', area);
     if (areaSelectionResolver) {
         if (area && area.cancel) {
+            console.log('User cancelled area selection');
             areaSelectionResolver(null);
         }
         else {
+            console.log('Resolving with area:', area);
             areaSelectionResolver(area);
         }
         areaSelectionResolver = null;
     }
+    else {
+        console.warn('No areaSelectionResolver available');
+    }
     if (overlayWindow) {
+        console.log('Closing overlay window');
         overlayWindow.close();
         overlayWindow = null;
     }
 });
 async function selectAreaOnScreen() {
+    console.log('Starting area selection process');
     return new Promise((resolve) => {
+        console.log('Setting up area selection resolver');
         areaSelectionResolver = resolve;
         const primaryDisplay = electron_1.screen.getPrimaryDisplay();
         const { width, height, x, y } = primaryDisplay.bounds;
+        console.log('Creating overlay window with dimensions:', { width, height, x, y });
         overlayWindow = new electron_1.BrowserWindow({
             width,
             height,
@@ -237,7 +247,7 @@ async function selectAreaOnScreen() {
             movable: false,
             focusable: true,
             webPreferences: {
-                preload: path_1.default.join(__dirname, 'preload.js'),
+                preload: path_1.default.join(__dirname, 'overlayPreload.js'),
                 nodeIntegration: false,
                 contextIsolation: true,
             },
@@ -245,12 +255,15 @@ async function selectAreaOnScreen() {
             show: false, // Start hidden
         });
         overlayWindow.setIgnoreMouseEvents(false);
+        console.log('Loading area overlay HTML');
         overlayWindow.loadFile(path_1.default.join(__dirname, 'areaOverlay.html'));
         overlayWindow.once('ready-to-show', () => {
+            console.log('Overlay window ready to show');
             overlayWindow?.show();
             overlayWindow?.focus();
         });
         overlayWindow.on('closed', () => {
+            console.log('Overlay window closed');
             overlayWindow = null;
         });
     });
@@ -258,8 +271,10 @@ async function selectAreaOnScreen() {
 // Remove the old 'capture-area' handler and replace it with a trigger from the renderer
 electron_1.ipcMain.handle('trigger-area-overlay', async () => {
     try {
+        console.log('Trigger area overlay requested');
         // Show overlay and get area
         const area = await selectAreaOnScreen();
+        console.log('Area selection completed with result:', area);
         return area;
     }
     catch (error) {
@@ -273,23 +288,31 @@ electron_1.ipcMain.handle('capture-area', async (event, area) => {
         if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
             throw new Error('Invalid area coordinates');
         }
+        console.log('Area capture requested:', area);
         // Capture the full screen
         const imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
-        // Crop the image to the selected area
-        const croppedBuffer = await (0, sharp_1.default)(imgBuffer)
-            .extract({ left: Math.round(area.x), top: Math.round(area.y), width: Math.round(area.width), height: Math.round(area.height) })
-            .png()
-            .toBuffer();
-        // Save the cropped screenshot
-        const filePath = await saveScreenshot(croppedBuffer);
-        // Copy to clipboard
-        const clipboardSuccess = copyToClipboard(croppedBuffer);
-        // Return base64 image and file path
-        return {
-            base64Image: croppedBuffer.toString('base64'),
-            savedFilePath: filePath,
-            clipboardCopySuccess: clipboardSuccess
-        };
+        console.log('Full screenshot captured, size:', imgBuffer.length);
+        try {
+            // Use our helper to crop the image with Jimp
+            const croppedBuffer = await (0, jimp_helper_1.cropImage)(imgBuffer, area.x, area.y, area.width, area.height);
+            console.log('Image cropped successfully, size:', croppedBuffer.length);
+            // Save the cropped screenshot
+            const filePath = await saveScreenshot(croppedBuffer);
+            console.log('Cropped screenshot saved to:', filePath);
+            // Copy to clipboard
+            const clipboardSuccess = copyToClipboard(croppedBuffer);
+            console.log('Clipboard copy success:', clipboardSuccess);
+            // Return base64 image and file path
+            return {
+                base64Image: croppedBuffer.toString('base64'),
+                savedFilePath: filePath,
+                clipboardCopySuccess: clipboardSuccess
+            };
+        }
+        catch (jimpError) {
+            console.error('Jimp processing error:', jimpError);
+            throw jimpError;
+        }
     }
     catch (error) {
         console.error('Area capture failed:', error);
