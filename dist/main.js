@@ -9,7 +9,9 @@ const path_1 = __importDefault(require("path"));
 const screenshot_desktop_1 = __importDefault(require("screenshot-desktop"));
 const fs_1 = __importDefault(require("fs"));
 const storage_1 = require("./config/storage");
-const jimp_helper_1 = require("./utils/jimp-helper");
+const jimp_native_1 = require("./utils/jimp-native");
+const logger_1 = require("./utils/logger");
+const sidecar_manager_1 = require("./utils/sidecar-manager");
 // Get screenshot save directory from config
 let screenshotSaveDir = (0, storage_1.loadStorageConfig)().saveDirectory;
 // Ensure the save directory exists
@@ -60,7 +62,7 @@ function copyToClipboard(imgBuffer) {
         return false;
     }
 }
-function createWindow() {
+async function createWindow() {
     const win = new electron_1.BrowserWindow({
         width: 800,
         height: 600,
@@ -70,31 +72,43 @@ function createWindow() {
             contextIsolation: true,
         },
     });
-    // Get the absolute path to the HTML file
+    // Load the HTML file with fallback handling
     const indexHtmlPath = path_1.default.join(__dirname, 'index.html');
     console.log('Loading HTML from:', indexHtmlPath);
-    // Check if the file exists
-    if (fs_1.default.existsSync(indexHtmlPath)) {
-        console.log('index.html exists at the path');
-        win.loadFile(indexHtmlPath);
+    try {
+        await win.loadFile(indexHtmlPath);
+        console.log('Successfully loaded index.html');
     }
-    else {
-        console.error('index.html not found at path:', indexHtmlPath);
+    catch (error) {
+        console.error('Failed to load index.html:', error);
+        // Show error dialog if HTML file cannot be loaded
+        electron_1.dialog.showErrorBox('Application Error', 'Failed to load the application interface. Please reinstall the application.');
     }
-    // Open DevTools for debugging
-    win.webContents.openDevTools();
+    // Open DevTools only in development
+    if (process.env.NODE_ENV === 'development' || !electron_1.app.isPackaged) {
+        win.webContents.openDevTools();
+    }
 }
-electron_1.app.whenReady().then(() => {
-    createWindow();
+// Global error handlers for main process
+process.on('uncaughtException', (error) => {
+    logger_1.logger.error('main', 'Uncaught Exception', error);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    logger_1.logger.error('main', 'Unhandled Promise Rejection', reason, { promise: promise.toString() });
+});
+electron_1.app.whenReady().then(async () => {
+    logger_1.logger.info('main', 'App ready, creating window');
+    await createWindow();
     // For macOS, inform about screen recording permission
     if (process.platform === 'darwin') {
         // On macOS, screen recording permission is requested automatically 
         // when the screenshot is first attempted via screenshot-desktop
         console.log('Running on macOS - screen recording permission will be requested when needed');
+        logger_1.logger.info('main', 'Running on macOS - screen recording permission will be requested when needed');
     }
-    electron_1.app.on('activate', () => {
+    electron_1.app.on('activate', async () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0)
-            createWindow();
+            await createWindow();
     });
 });
 electron_1.app.on('window-all-closed', () => {
@@ -121,14 +135,18 @@ electron_1.ipcMain.handle('capture-fullscreen', async () => {
         else {
             console.warn('Screenshot copied to clipboard failed');
         }
+        // Convert to base64 for return
+        const base64Image = imgBuffer.toString('base64');
+        // Clear the buffer reference to help with memory management
+        imgBuffer.fill(0);
         // Return the image as a base64 string to the renderer along with the saved path
         return {
-            base64Image: imgBuffer.toString('base64'),
+            base64Image,
             savedFilePath: filePath
         };
     }
     catch (error) {
-        console.error('Screenshot capture failed:', error);
+        logger_1.logger.error('main', 'Screenshot capture failed', error);
         // Show error dialog to user
         electron_1.dialog.showErrorBox('Screenshot Failed', 'Failed to capture screenshot. Please check if screen recording permission is granted.');
         return null;
@@ -157,7 +175,7 @@ electron_1.ipcMain.handle('save-screenshot', async (event, base64Image) => {
         };
     }
     catch (error) {
-        console.error('Failed to save screenshot:', error);
+        logger_1.logger.error('main', 'Failed to save screenshot', error);
         // Show error dialog to user
         electron_1.dialog.showErrorBox('Save Screenshot Failed', 'Failed to save screenshot. Please try again.');
         return {
@@ -172,7 +190,8 @@ electron_1.ipcMain.handle('load-storage-config', async () => {
         return (0, storage_1.loadStorageConfig)();
     }
     catch (error) {
-        console.error('Failed to load storage config:', error);
+        logger_1.logger.error('main', 'Failed to load storage config', error);
+        electron_1.dialog.showErrorBox('Configuration Error', 'Failed to load application settings. Using defaults.');
         return null;
     }
 });
@@ -188,83 +207,219 @@ electron_1.ipcMain.handle('save-storage-config', async (event, config) => {
     }
     catch (error) {
         console.error('Failed to save storage config:', error);
+        electron_1.dialog.showErrorBox('Configuration Error', 'Failed to save application settings.');
         return false;
     }
 });
 // Handle directory selection dialog
 electron_1.ipcMain.handle('select-directory', async () => {
-    const result = await electron_1.dialog.showOpenDialog({
-        properties: ['openDirectory'],
-        title: 'Select Screenshot Save Location'
-    });
-    return result;
+    try {
+        const result = await electron_1.dialog.showOpenDialog({
+            properties: ['openDirectory'],
+            title: 'Select Screenshot Save Location'
+        });
+        return result;
+    }
+    catch (error) {
+        console.error('Failed to open directory selection dialog:', error);
+        return { canceled: true, filePaths: [] };
+    }
 });
-// Overlay window reference and area selection promise
-let overlayWindow = null;
+// Overlay windows reference and area selection promise
+let overlayWindows = [];
 let areaSelectionResolver = null;
 // Listen for area selection from overlay
-const electron_2 = require("electron");
-electron_2.ipcMain.on('area-selection', (event, area) => {
+electron_1.ipcMain.on('area-selection', (event, area) => {
     console.log('Received area selection event:', area);
     if (areaSelectionResolver) {
         if (area && area.cancel) {
             console.log('User cancelled area selection');
             areaSelectionResolver(null);
         }
-        else {
-            console.log('Resolving with area:', area);
-            areaSelectionResolver(area);
+        else if (area) {
+            // Transform overlay coordinates to screen coordinates
+            const transformedArea = transformOverlayToScreenCoordinates(area);
+            console.log('Original overlay area:', area);
+            console.log('Transformed screen area:', transformedArea);
+            areaSelectionResolver(transformedArea);
         }
         areaSelectionResolver = null;
     }
     else {
         console.warn('No areaSelectionResolver available');
     }
-    if (overlayWindow) {
-        console.log('Closing overlay window');
-        overlayWindow.close();
-        overlayWindow = null;
+    // Close all overlay windows
+    if (overlayWindows.length > 0) {
+        console.log('Closing overlay windows');
+        overlayWindows.forEach(window => {
+            if (!window.isDestroyed()) {
+                window.close();
+            }
+        });
+        overlayWindows = [];
     }
 });
+// Transform overlay coordinates to actual screen coordinates
+// Accounts for menu bar height offset on macOS
+function transformOverlayToScreenCoordinates(overlayArea) {
+    const allDisplays = electron_1.screen.getAllDisplays();
+    // Find the display for this area selection
+    let targetDisplay;
+    if (overlayArea.displayId) {
+        // If display ID is provided, use it directly
+        targetDisplay = allDisplays.find(d => d.id === overlayArea.displayId) || allDisplays[0];
+        console.log('Using provided display ID:', overlayArea.displayId);
+    }
+    else {
+        // Fallback to primary display if no display ID provided
+        targetDisplay = allDisplays[0];
+        console.log('No display ID provided, using primary display');
+    }
+    console.log('Target display for area selection:', {
+        display: targetDisplay.id,
+        bounds: targetDisplay.bounds,
+        scaleFactor: targetDisplay.scaleFactor
+    });
+    // Determine if this is the primary display (usually the one with x: 0, y: 0)
+    const isPrimaryDisplay = targetDisplay.bounds.x === 0 && targetDisplay.bounds.y === 0;
+    console.log('Is primary display:', isPrimaryDisplay);
+    // Get menu bar height for primary display offset correction
+    // Calculate menu bar height from difference between bounds and work area
+    const primaryDisplay = electron_1.screen.getPrimaryDisplay();
+    const menuBarHeight = primaryDisplay.workArea.y - primaryDisplay.bounds.y;
+    console.log('Menu bar height calculated:', {
+        displayBounds: primaryDisplay.bounds,
+        workArea: primaryDisplay.workArea,
+        menuBarHeight
+    });
+    // Check if target display has any work area offset (similar to menu bar)
+    const targetDisplayOffset = targetDisplay.workArea.y - targetDisplay.bounds.y;
+    console.log('Target display work area analysis:', {
+        displayId: targetDisplay.id,
+        bounds: targetDisplay.bounds,
+        workArea: targetDisplay.workArea,
+        calculatedOffset: targetDisplayOffset,
+        isPrimary: isPrimaryDisplay
+    });
+    // Apply coordinate transformation
+    const scaleFactor = targetDisplay.scaleFactor;
+    // Apply coordinate adjustments based on display type
+    let adjustedX = overlayArea.x;
+    let adjustedY = overlayArea.y;
+    if (isPrimaryDisplay) {
+        // For primary display, add menu bar height offset to Y
+        adjustedY = overlayArea.y + menuBarHeight;
+        console.log('Applied menu bar offset to primary display:', {
+            originalY: overlayArea.y,
+            menuBarHeight,
+            adjustedY
+        });
+    }
+    else {
+        // For secondary displays, check if there's a work area offset similar to menu bar
+        adjustedX = overlayArea.x;
+        if (targetDisplayOffset > 0) {
+            // Secondary display has a work area offset, apply it like we do for menu bar
+            adjustedY = overlayArea.y + targetDisplayOffset;
+            console.log('Applied work area offset to secondary display:', {
+                originalY: overlayArea.y,
+                targetDisplayOffset,
+                adjustedY
+            });
+        }
+        else {
+            // No work area offset detected, use coordinates directly
+            adjustedY = overlayArea.y;
+            console.log('Using overlay coordinates directly for secondary display:', {
+                overlayCoords: { x: overlayArea.x, y: overlayArea.y },
+                displayBounds: { x: targetDisplay.bounds.x, y: targetDisplay.bounds.y },
+                note: 'No work area offset detected'
+            });
+        }
+    }
+    const physicalX = Math.round(adjustedX * scaleFactor);
+    const physicalY = Math.round(adjustedY * scaleFactor);
+    const physicalWidth = Math.round(overlayArea.width * scaleFactor);
+    const physicalHeight = Math.round(overlayArea.height * scaleFactor);
+    console.log('Coordinate transformation with display-specific corrections:', {
+        overlay: { x: overlayArea.x, y: overlayArea.y, width: overlayArea.width, height: overlayArea.height },
+        menuBarHeight,
+        isPrimaryDisplay,
+        adjusted: { x: adjustedX, y: adjustedY },
+        physical: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight },
+        scaleFactor,
+        displayId: targetDisplay.id
+    });
+    return {
+        x: physicalX,
+        y: physicalY,
+        width: physicalWidth,
+        height: physicalHeight,
+        displayId: targetDisplay.id
+    };
+}
 async function selectAreaOnScreen() {
-    console.log('Starting area selection process');
+    console.log('Starting area selection process with individual display overlays');
     return new Promise((resolve) => {
         console.log('Setting up area selection resolver');
         areaSelectionResolver = resolve;
-        const primaryDisplay = electron_1.screen.getPrimaryDisplay();
-        const { width, height, x, y } = primaryDisplay.bounds;
-        console.log('Creating overlay window with dimensions:', { width, height, x, y });
-        overlayWindow = new electron_1.BrowserWindow({
-            width,
-            height,
-            x,
-            y,
-            frame: false,
-            transparent: true,
-            alwaysOnTop: true,
-            skipTaskbar: true,
-            resizable: false,
-            movable: false,
-            focusable: true,
-            webPreferences: {
-                preload: path_1.default.join(__dirname, 'overlayPreload.js'),
-                nodeIntegration: false,
-                contextIsolation: true,
-            },
-            hasShadow: false,
-            show: false, // Start hidden
-        });
-        overlayWindow.setIgnoreMouseEvents(false);
-        console.log('Loading area overlay HTML');
-        overlayWindow.loadFile(path_1.default.join(__dirname, 'areaOverlay.html'));
-        overlayWindow.once('ready-to-show', () => {
-            console.log('Overlay window ready to show');
-            overlayWindow?.show();
-            overlayWindow?.focus();
-        });
-        overlayWindow.on('closed', () => {
-            console.log('Overlay window closed');
-            overlayWindow = null;
+        // Get all displays to support multi-monitor setups
+        const allDisplays = electron_1.screen.getAllDisplays();
+        console.log('All displays:', allDisplays.map(d => ({ id: d.id, bounds: d.bounds, scaleFactor: d.scaleFactor })));
+        // Create individual overlay windows for each display
+        console.log('Creating individual overlay windows for each display');
+        overlayWindows = [];
+        let readyCount = 0;
+        const totalDisplays = allDisplays.length;
+        allDisplays.forEach((display, index) => {
+            console.log(`Creating overlay ${index + 1}/${totalDisplays} for display ${display.id}:`, display.bounds);
+            const overlayWindow = new electron_1.BrowserWindow({
+                width: display.bounds.width,
+                height: display.bounds.height,
+                x: display.bounds.x,
+                y: display.bounds.y,
+                frame: false,
+                transparent: true,
+                alwaysOnTop: true,
+                skipTaskbar: true,
+                resizable: false,
+                movable: false,
+                focusable: true,
+                webPreferences: {
+                    preload: path_1.default.join(__dirname, 'overlayPreload.js'),
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    additionalArguments: [`--display-id=${display.id}`, `--display-bounds=${JSON.stringify(display.bounds)}`]
+                },
+                hasShadow: false,
+                show: false, // Start hidden
+            });
+            overlayWindow.setIgnoreMouseEvents(false);
+            overlayWindows.push(overlayWindow);
+            console.log(`Loading area overlay HTML for display ${display.id}`);
+            overlayWindow.loadFile(path_1.default.join(__dirname, 'areaOverlay.html'));
+            overlayWindow.once('ready-to-show', () => {
+                readyCount++;
+                console.log(`Overlay window ${readyCount}/${totalDisplays} ready for display ${display.id}`);
+                // Show all overlays when all are ready
+                if (readyCount === totalDisplays) {
+                    console.log('All overlay windows ready, showing all overlays');
+                    overlayWindows.forEach(window => {
+                        if (!window.isDestroyed()) {
+                            window.show();
+                            window.focus();
+                        }
+                    });
+                }
+            });
+            overlayWindow.on('closed', () => {
+                console.log(`Overlay window closed for display ${display.id}`);
+                // Remove from array when closed
+                const windowIndex = overlayWindows.indexOf(overlayWindow);
+                if (windowIndex > -1) {
+                    overlayWindows.splice(windowIndex, 1);
+                }
+            });
         });
     });
 }
@@ -283,18 +438,47 @@ electron_1.ipcMain.handle('trigger-area-overlay', async () => {
     }
 });
 // Update the 'capture-area' handler to only crop and save, given area
-electron_1.ipcMain.handle('capture-area', async (event, area) => {
+electron_1.ipcMain.handle('capture-area', async (event, area, targetDisplayId) => {
     try {
         if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
             throw new Error('Invalid area coordinates');
         }
         console.log('Area capture requested:', area);
-        // Capture the full screen
-        const imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
-        console.log('Full screenshot captured, size:', imgBuffer.length);
+        console.log('Target display ID:', targetDisplayId);
+        // If we have a target display ID, capture only that display
+        let imgBuffer;
+        if (targetDisplayId) {
+            const allDisplays = electron_1.screen.getAllDisplays();
+            const targetDisplayIndex = allDisplays.findIndex(d => d.id === targetDisplayId);
+            const targetDisplay = allDisplays.find(d => d.id === targetDisplayId);
+            if (targetDisplay && targetDisplayIndex !== -1) {
+                console.log('Capturing specific display:', targetDisplay.id, targetDisplay.bounds);
+                console.log('Using screenshot-desktop index:', targetDisplayIndex);
+                // Capture the specific display using the index (not the ID)
+                try {
+                    imgBuffer = await (0, screenshot_desktop_1.default)({
+                        format: 'png',
+                        screen: targetDisplayIndex
+                    });
+                }
+                catch (screenError) {
+                    console.error('Failed to capture specific display, falling back to full screen:', screenError);
+                    imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
+                }
+            }
+            else {
+                console.warn('Target display not found, falling back to full screen');
+                imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
+            }
+        }
+        else {
+            // Fallback to full screen capture
+            imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
+        }
+        console.log('Screenshot captured, size:', imgBuffer.length);
         try {
             // Use our helper to crop the image with Jimp
-            const croppedBuffer = await (0, jimp_helper_1.cropImage)(imgBuffer, area.x, area.y, area.width, area.height);
+            const croppedBuffer = await (0, jimp_native_1.cropImage)(imgBuffer, area.x, area.y, area.width, area.height);
             console.log('Image cropped successfully, size:', croppedBuffer.length);
             // Save the cropped screenshot
             const filePath = await saveScreenshot(croppedBuffer);
@@ -302,9 +486,13 @@ electron_1.ipcMain.handle('capture-area', async (event, area) => {
             // Copy to clipboard
             const clipboardSuccess = copyToClipboard(croppedBuffer);
             console.log('Clipboard copy success:', clipboardSuccess);
+            // Convert to base64 for return
+            const base64Image = croppedBuffer.toString('base64');
+            // Clear buffer references to help with memory management
+            croppedBuffer.fill(0);
             // Return base64 image and file path
             return {
-                base64Image: croppedBuffer.toString('base64'),
+                base64Image,
                 savedFilePath: filePath,
                 clipboardCopySuccess: clipboardSuccess
             };
@@ -315,8 +503,150 @@ electron_1.ipcMain.handle('capture-area', async (event, area) => {
         }
     }
     catch (error) {
-        console.error('Area capture failed:', error);
+        logger_1.logger.error('main', 'Area capture failed', error);
         electron_1.dialog.showErrorBox('Area Capture Failed', 'Failed to capture selected area. Please try again.');
         return null;
+    }
+});
+// IPC handlers for log access
+electron_1.ipcMain.handle('get-recent-logs', async (event, lines = 100) => {
+    try {
+        return logger_1.logger.getRecentLogs(lines);
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get recent logs', error);
+        return 'Failed to retrieve logs';
+    }
+});
+electron_1.ipcMain.handle('get-log-path', async () => {
+    try {
+        return logger_1.logger.getLogPath();
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get log path', error);
+        return null;
+    }
+});
+// IPC handler for renderer to send logs
+electron_1.ipcMain.handle('log-from-renderer', async (event, logEntry) => {
+    try {
+        logger_1.logger.log({
+            ...logEntry,
+            source: 'renderer'
+        });
+    }
+    catch (error) {
+        console.error('Failed to log from renderer:', error);
+    }
+});
+// Sidecar file IPC handlers
+electron_1.ipcMain.handle('sidecar-create', async (event, imagePath, metadata, tags = [], notes = '', annotations = []) => {
+    try {
+        logger_1.logger.info('main', `Creating sidecar file for ${imagePath}`);
+        const result = await sidecar_manager_1.sidecarManager.createSidecarFile(imagePath, metadata, tags, notes, annotations);
+        return { success: result };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to create sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-load', async (event, imagePath) => {
+    try {
+        const sidecarData = await sidecar_manager_1.sidecarManager.loadSidecarFile(imagePath);
+        return { success: true, data: sidecarData };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to load sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-update', async (event, imagePath, updates) => {
+    try {
+        logger_1.logger.info('main', `Updating sidecar file for ${imagePath}`);
+        const result = await sidecar_manager_1.sidecarManager.updateSidecarFile(imagePath, updates);
+        return { success: result };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to update sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-add-annotation', async (event, imagePath, annotation) => {
+    try {
+        logger_1.logger.info('main', `Adding annotation to sidecar file for ${imagePath}`);
+        const result = await sidecar_manager_1.sidecarManager.addAnnotation(imagePath, annotation);
+        return { success: result };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to add annotation to sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-remove-annotation', async (event, imagePath, annotationId) => {
+    try {
+        logger_1.logger.info('main', `Removing annotation from sidecar file for ${imagePath}`);
+        const result = await sidecar_manager_1.sidecarManager.removeAnnotation(imagePath, annotationId);
+        return { success: result };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to remove annotation from sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-exists', async (event, imagePath) => {
+    try {
+        const exists = sidecar_manager_1.sidecarManager.sidecarExists(imagePath);
+        return { success: true, exists };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to check sidecar existence', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-scan-directory', async (event, directoryPath) => {
+    try {
+        logger_1.logger.info('main', `Scanning directory for screenshots: ${directoryPath}`);
+        const results = await sidecar_manager_1.sidecarManager.scanDirectory(directoryPath);
+        return { success: true, data: results };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to scan directory for screenshots', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('sidecar-delete', async (event, imagePath) => {
+    try {
+        logger_1.logger.info('main', `Deleting sidecar file for ${imagePath}`);
+        const result = await sidecar_manager_1.sidecarManager.deleteSidecarFile(imagePath);
+        return { success: result };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to delete sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+// Handle file existence checks
+electron_1.ipcMain.handle('file-exists', async (event, filePath) => {
+    try {
+        const exists = fs_1.default.existsSync(filePath);
+        return exists;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to check file existence', error);
+        return false;
+    }
+});
+// Handle reading image files as base64
+electron_1.ipcMain.handle('read-image-file', async (event, filePath) => {
+    try {
+        logger_1.logger.info('main', `Reading image file: ${filePath}`);
+        const buffer = fs_1.default.readFileSync(filePath);
+        const base64 = buffer.toString('base64');
+        return { success: true, base64 };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to read image file', error);
+        return { success: false, error: error.message };
     }
 });

@@ -4,7 +4,6 @@
 
 // Import the Jimp module and electron modules
 import { nativeImage } from 'electron';
-const JimpModule = require('jimp');
 
 /**
  * Helper function to crop an image buffer using Jimp
@@ -13,9 +12,17 @@ const JimpModule = require('jimp');
  * @param y Y coordinate of the crop area
  * @param width Width of the crop area
  * @param height Height of the crop area
+ * @param outputFormat Output format (default: 'png')
  * @returns Promise resolving to the cropped image buffer
  */
-export async function cropImage(imageBuffer: Buffer, x: number, y: number, width: number, height: number): Promise<Buffer> {
+export async function cropImage(
+  imageBuffer: Buffer, 
+  x: number, 
+  y: number, 
+  width: number, 
+  height: number, 
+  outputFormat: 'png' | 'jpeg' = 'png'
+): Promise<Buffer> {
   try {
     console.log('Starting Jimp crop operation with nativeImage approach...');
     
@@ -23,39 +30,41 @@ export async function cropImage(imageBuffer: Buffer, x: number, y: number, width
     console.log('Converting buffer to PNG format via nativeImage...');
     const nImage = nativeImage.createFromBuffer(imageBuffer);
     
-    // Convert to PNG format which Jimp can reliably read
-    const pngBuffer = nImage.toPNG();
-    console.log('Converted to PNG, size:', pngBuffer.length);
+    // Get original image dimensions
+    const imgSize = nImage.getSize();
+    console.log('Original image dimensions:', imgSize.width, 'x', imgSize.height);
     
-    // Now load the PNG with Jimp
-    console.log('Loading PNG buffer with Jimp...');
-    const image = await JimpModule.Jimp.read(pngBuffer);
-    console.log('Image loaded successfully, dimensions:', image.getWidth(), 'x', image.getHeight());
+    // Validate crop parameters
+    const validX = Math.max(0, Math.min(Math.round(x), imgSize.width - 1));
+    const validY = Math.max(0, Math.min(Math.round(y), imgSize.height - 1));
+    const validWidth = Math.min(Math.round(width), imgSize.width - validX);
+    const validHeight = Math.min(Math.round(height), imgSize.height - validY);
     
-    // Crop the image with rounded coordinates
-    console.log('Cropping image with coordinates:', { x, y, width, height });
-    image.crop(
-      Math.round(x),
-      Math.round(y), 
-      Math.round(width), 
-      Math.round(height)
-    );
+    // Log if adjustments were made
+    if (validX !== Math.round(x) || validY !== Math.round(y) || 
+        validWidth !== Math.round(width) || validHeight !== Math.round(height)) {
+      console.warn('Crop area adjusted to fit within image boundaries:', 
+        { original: { x, y, width, height }, adjusted: { x: validX, y: validY, width: validWidth, height: validHeight } });
+    }
     
-    // Get the buffer using MIME_PNG constant from the module
-    console.log('Getting buffer...');
-    return await new Promise<Buffer>((resolve, reject) => {
-      image.getBuffer(JimpModule.Jimp.MIME_PNG, (err: Error | null, buffer: Buffer) => {
-        if (err) {
-          console.error('Error getting buffer:', err);
-          reject(err);
-        } else {
-          console.log('Buffer created successfully, size:', buffer.length);
-          resolve(buffer);
-        }
-      });
-    });
+    // Use nativeImage's crop directly for performance
+    console.log('Using nativeImage crop for better performance...');
+    try {
+      const croppedNative = nImage.crop({ x: validX, y: validY, width: validWidth, height: validHeight });
+      
+      // Convert to the specified output format
+      const croppedBuffer = outputFormat === 'jpeg' ? croppedNative.toJPEG(90) : croppedNative.toPNG();
+      console.log('Successfully used nativeImage crop, size:', croppedBuffer.length);
+      
+      return croppedBuffer;
+    } catch (nativeError) {
+      console.error('nativeImage crop failed:', nativeError);
+      throw new Error(`nativeImage crop failed: ${nativeError instanceof Error ? nativeError.message : String(nativeError)}`);
+    }
   } catch (error) {
     console.error('Error cropping image with Jimp:', error);
-    throw error;
+    
+    // More descriptive error
+    throw new Error(`Image cropping failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

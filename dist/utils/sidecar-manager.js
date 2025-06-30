@@ -1,0 +1,256 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sidecarManager = void 0;
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const crypto_1 = __importDefault(require("crypto"));
+class SidecarManager {
+    constructor() {
+        this.SIDECAR_VERSION = '1.0.0';
+        this.SIDECAR_EXTENSION = '.screenshotos.json';
+    }
+    /**
+     * Generate a sidecar file path for a given image path
+     */
+    getSidecarPath(imagePath) {
+        const parsedPath = path_1.default.parse(imagePath);
+        return path_1.default.join(parsedPath.dir, parsedPath.name + this.SIDECAR_EXTENSION);
+    }
+    /**
+     * Calculate SHA-256 checksum of an image file
+     */
+    async calculateImageChecksum(imagePath) {
+        return new Promise((resolve, reject) => {
+            const hash = crypto_1.default.createHash('sha256');
+            const stream = fs_1.default.createReadStream(imagePath);
+            stream.on('data', chunk => hash.update(chunk));
+            stream.on('end', () => resolve(hash.digest('hex')));
+            stream.on('error', reject);
+        });
+    }
+    /**
+     * Verify that an image file matches its recorded checksum
+     */
+    async verifyImageIntegrity(imagePath, expectedChecksum) {
+        try {
+            const actualChecksum = await this.calculateImageChecksum(imagePath);
+            return actualChecksum === expectedChecksum;
+        }
+        catch (error) {
+            console.error('Error verifying image integrity:', error);
+            return false;
+        }
+    }
+    /**
+     * Create a new sidecar file for a screenshot
+     */
+    async createSidecarFile(imagePath, metadata, tags = [], notes = '', annotations = []) {
+        try {
+            const checksum = await this.calculateImageChecksum(imagePath);
+            const now = new Date().toISOString();
+            const sidecarData = {
+                version: this.SIDECAR_VERSION,
+                originalImagePath: imagePath,
+                originalImageChecksum: checksum,
+                createdAt: now,
+                modifiedAt: now,
+                metadata,
+                tags,
+                notes,
+                annotations,
+                editHistory: [],
+                ocrText: ''
+            };
+            const sidecarPath = this.getSidecarPath(imagePath);
+            await fs_1.default.promises.writeFile(sidecarPath, JSON.stringify(sidecarData, null, 2), 'utf8');
+            console.log(`Created sidecar file: ${sidecarPath}`);
+            return true;
+        }
+        catch (error) {
+            console.error('Error creating sidecar file:', error);
+            return false;
+        }
+    }
+    /**
+     * Load sidecar data for a screenshot
+     */
+    async loadSidecarFile(imagePath) {
+        try {
+            const sidecarPath = this.getSidecarPath(imagePath);
+            if (!fs_1.default.existsSync(sidecarPath)) {
+                return null;
+            }
+            const data = await fs_1.default.promises.readFile(sidecarPath, 'utf8');
+            const sidecarData = JSON.parse(data);
+            // Verify version compatibility
+            if (!this.isVersionCompatible(sidecarData.version)) {
+                console.warn(`Sidecar file version ${sidecarData.version} may be incompatible with current version ${this.SIDECAR_VERSION}`);
+            }
+            // Verify image integrity
+            const isValid = await this.verifyImageIntegrity(imagePath, sidecarData.originalImageChecksum);
+            if (!isValid) {
+                console.warn(`Image integrity check failed for ${imagePath}`);
+            }
+            return sidecarData;
+        }
+        catch (error) {
+            console.error('Error loading sidecar file:', error);
+            return null;
+        }
+    }
+    /**
+     * Update an existing sidecar file
+     */
+    async updateSidecarFile(imagePath, updates) {
+        try {
+            const sidecarData = await this.loadSidecarFile(imagePath);
+            if (!sidecarData) {
+                console.error('Cannot update non-existent sidecar file');
+                return false;
+            }
+            // Apply updates
+            const updatedData = {
+                ...sidecarData,
+                ...updates,
+                modifiedAt: new Date().toISOString()
+            };
+            const sidecarPath = this.getSidecarPath(imagePath);
+            await fs_1.default.promises.writeFile(sidecarPath, JSON.stringify(updatedData, null, 2), 'utf8');
+            return true;
+        }
+        catch (error) {
+            console.error('Error updating sidecar file:', error);
+            return false;
+        }
+    }
+    /**
+     * Add an annotation to a sidecar file
+     */
+    async addAnnotation(imagePath, annotation) {
+        try {
+            const sidecarData = await this.loadSidecarFile(imagePath);
+            if (!sidecarData) {
+                console.error('Cannot add annotation to non-existent sidecar file');
+                return false;
+            }
+            // Add annotation and create edit operation
+            const updatedAnnotations = [...sidecarData.annotations, annotation];
+            const editOperation = {
+                id: `edit-${Date.now()}`,
+                type: 'annotation',
+                operation: 'add',
+                timestamp: new Date().toISOString(),
+                parameters: annotation,
+                annotationId: annotation.id
+            };
+            const updatedEditHistory = [...sidecarData.editHistory, editOperation];
+            return await this.updateSidecarFile(imagePath, {
+                annotations: updatedAnnotations
+            });
+        }
+        catch (error) {
+            console.error('Error adding annotation to sidecar file:', error);
+            return false;
+        }
+    }
+    /**
+     * Remove an annotation from a sidecar file
+     */
+    async removeAnnotation(imagePath, annotationId) {
+        try {
+            const sidecarData = await this.loadSidecarFile(imagePath);
+            if (!sidecarData) {
+                return false;
+            }
+            const updatedAnnotations = sidecarData.annotations.filter(a => a.id !== annotationId);
+            const editOperation = {
+                id: `edit-${Date.now()}`,
+                type: 'annotation',
+                operation: 'remove',
+                timestamp: new Date().toISOString(),
+                parameters: { annotationId },
+                annotationId
+            };
+            const updatedEditHistory = [...sidecarData.editHistory, editOperation];
+            return await this.updateSidecarFile(imagePath, {
+                annotations: updatedAnnotations
+            });
+        }
+        catch (error) {
+            console.error('Error removing annotation from sidecar file:', error);
+            return false;
+        }
+    }
+    /**
+     * Check if a sidecar file exists for an image
+     */
+    sidecarExists(imagePath) {
+        const sidecarPath = this.getSidecarPath(imagePath);
+        return fs_1.default.existsSync(sidecarPath);
+    }
+    /**
+     * Delete a sidecar file
+     */
+    async deleteSidecarFile(imagePath) {
+        try {
+            const sidecarPath = this.getSidecarPath(imagePath);
+            if (fs_1.default.existsSync(sidecarPath)) {
+                await fs_1.default.promises.unlink(sidecarPath);
+                console.log(`Deleted sidecar file: ${sidecarPath}`);
+            }
+            return true;
+        }
+        catch (error) {
+            console.error('Error deleting sidecar file:', error);
+            return false;
+        }
+    }
+    /**
+     * Scan a directory for screenshots and their sidecar files
+     */
+    async scanDirectory(directoryPath) {
+        try {
+            const files = await fs_1.default.promises.readdir(directoryPath);
+            const imageExtensions = ['.png', '.jpg', '.jpeg'];
+            const results = [];
+            for (const file of files) {
+                const filePath = path_1.default.join(directoryPath, file);
+                const ext = path_1.default.extname(file).toLowerCase();
+                if (imageExtensions.includes(ext)) {
+                    const sidecarPath = this.getSidecarPath(filePath);
+                    const hasSidecar = fs_1.default.existsSync(sidecarPath);
+                    results.push({
+                        imagePath: filePath,
+                        sidecarPath,
+                        hasSidecar
+                    });
+                }
+            }
+            return results;
+        }
+        catch (error) {
+            console.error('Error scanning directory:', error);
+            return [];
+        }
+    }
+    /**
+     * Check if sidecar version is compatible
+     */
+    isVersionCompatible(version) {
+        // Simple version check - in the future, implement proper semver comparison
+        const [major] = version.split('.');
+        const [currentMajor] = this.SIDECAR_VERSION.split('.');
+        return major === currentMajor;
+    }
+    /**
+     * Migrate old sidecar format to new version if needed
+     */
+    async migrateSidecarFile(imagePath) {
+        // Placeholder for future version migrations
+        return true;
+    }
+}
+exports.sidecarManager = new SidecarManager();

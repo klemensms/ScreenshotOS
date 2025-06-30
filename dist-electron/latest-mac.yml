@@ -1,0 +1,11 @@
+version: 1.0.0
+files:
+  - url: ScreenshotOS-1.0.0-arm64-mac.zip
+    sha512: vLLTcbz4pgr5VBYoA70PesoPHI0uhAScB5cYICWSiecSmp4t9VLdmadH9PcMAktQQDgg2qQLgLC7V6tKkrdn+Q==
+    size: 114486633
+  - url: ScreenshotOS-1.0.0-arm64.dmg
+    sha512: AH5U6aBlHpSKFa2VcJt7NCiYTbgDbT1dL0kTa/8262UQ2EQKBUvmotV72qkVNrmeADdTrveErNo8uhE0L6PEYg==
+    size: 118493741
+path: ScreenshotOS-1.0.0-arm64-mac.zip
+sha512: vLLTcbz4pgr5VBYoA70PesoPHI0uhAScB5cYICWSiecSmp4t9VLdmadH9PcMAktQQDgg2qQLgLC7V6tKkrdn+Q==
+releaseDate: '2025-06-29T05:34:20.831Z'

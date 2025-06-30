@@ -4,6 +4,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 interface ElectronAPI {
   invoke: (channel: string, ...args: any[]) => Promise<any>;
   sendAreaSelection: (area: { x: number; y: number; width: number; height: number }) => void;
+  getRecentLogs: (lines?: number) => Promise<string>;
+  getLogPath: () => Promise<string>;
+  logFromRenderer: (level: string, message: string, error?: any, extra?: any) => Promise<void>;
 }
 
 // Expose protected methods that allow the renderer process to use IPC
@@ -16,7 +19,20 @@ contextBridge.exposeInMainWorld('electron', {
       'load-storage-config',
       'save-storage-config',
       'select-directory',
-      'trigger-area-overlay'
+      'trigger-area-overlay',
+      'get-recent-logs',
+      'get-log-path',
+      'log-from-renderer',
+      'sidecar-create',
+      'sidecar-load',
+      'sidecar-update',
+      'sidecar-add-annotation',
+      'sidecar-remove-annotation',
+      'sidecar-exists',
+      'sidecar-scan-directory',
+      'sidecar-delete',
+      'file-exists',
+      'read-image-file'
     ];
     
     if (validChannels.includes(channel)) {
@@ -27,6 +43,21 @@ contextBridge.exposeInMainWorld('electron', {
   },
   sendAreaSelection: (area: { x: number; y: number; width: number; height: number }) => {
     ipcRenderer.send('area-selection', area);
+  },
+  getRecentLogs: (lines = 100) => {
+    return ipcRenderer.invoke('get-recent-logs', lines);
+  },
+  getLogPath: () => {
+    return ipcRenderer.invoke('get-log-path');
+  },
+  logFromRenderer: (level: string, message: string, error?: any, extra?: any) => {
+    return ipcRenderer.invoke('log-from-renderer', {
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      stack: error?.stack,
+      extra
+    });
   }
 } as ElectronAPI);
 

@@ -24,7 +24,20 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             'load-storage-config',
             'save-storage-config',
             'select-directory',
-            'trigger-area-overlay'
+            'trigger-area-overlay',
+            'get-recent-logs',
+            'get-log-path',
+            'log-from-renderer',
+            'sidecar-create',
+            'sidecar-load',
+            'sidecar-update',
+            'sidecar-add-annotation',
+            'sidecar-remove-annotation',
+            'sidecar-exists',
+            'sidecar-scan-directory',
+            'sidecar-delete',
+            'file-exists',
+            'read-image-file'
         ];
         if (validChannels.includes(channel)) {
             return electron_1.ipcRenderer.invoke.apply(electron_1.ipcRenderer, __spreadArray([channel], args, false));
@@ -33,5 +46,21 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
     },
     sendAreaSelection: function (area) {
         electron_1.ipcRenderer.send('area-selection', area);
+    },
+    getRecentLogs: function (lines) {
+        if (lines === void 0) { lines = 100; }
+        return electron_1.ipcRenderer.invoke('get-recent-logs', lines);
+    },
+    getLogPath: function () {
+        return electron_1.ipcRenderer.invoke('get-log-path');
+    },
+    logFromRenderer: function (level, message, error, extra) {
+        return electron_1.ipcRenderer.invoke('log-from-renderer', {
+            timestamp: new Date().toISOString(),
+            level: level,
+            message: message,
+            stack: error === null || error === void 0 ? void 0 : error.stack,
+            extra: extra
+        });
     }
 });

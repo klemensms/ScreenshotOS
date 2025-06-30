@@ -58,8 +58,11 @@ document.addEventListener('mouseup', (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    console.log('Escape key pressed, canceling area selection');
     if (window.electronAPI) {
       window.electronAPI.sendAreaSelection({ cancel: true });
+    } else {
+      console.error('window.electronAPI not available for cancel');
     }
     setTimeout(() => { window.close(); }, 50);
   }
