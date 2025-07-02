@@ -36,7 +36,7 @@ export interface SidecarMetadata {
 
 export interface SidecarAnnotation {
   id: string;
-  type: 'arrow' | 'rectangle' | 'text' | 'numbering';
+  type: 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur';
   color: string;
   position: {
     x: number;
@@ -46,6 +46,7 @@ export interface SidecarAnnotation {
   };
   text?: string;
   number?: number;
+  blurIntensity?: number;
   createdAt: string;
   modifiedAt: string;
   visible: boolean;
@@ -219,9 +220,9 @@ class RendererSidecarManager {
   }
 
   /**
-   * Scan a directory for screenshots and their sidecar files
+   * Scan a directory for all images and their optional sidecar files
    */
-  async scanDirectory(directoryPath: string): Promise<{ success: boolean; sidecarFiles?: string[]; error?: string }> {
+  async scanDirectory(directoryPath: string): Promise<{ success: boolean; imageFiles?: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}>; error?: string }> {
     try {
       if (!window.electron) {
         throw new Error('Electron API not available');
@@ -230,13 +231,21 @@ class RendererSidecarManager {
       const result = await window.electron.invoke('sidecar-scan-directory', directoryPath);
       
       if (result.success) {
-        // Extract only the sidecar file paths where hasSidecar is true
-        const sidecarFiles = result.data
-          .filter((item: {imagePath: string, sidecarPath: string, hasSidecar: boolean}) => item.hasSidecar)
-          .map((item: {imagePath: string, sidecarPath: string, hasSidecar: boolean}) => item.sidecarPath);
+        // Return ALL image files (with or without sidecar files)
+        const imageFiles = result.data as Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}>;
         
-        rendererLogger.info('Directory scanned successfully', { directoryPath, count: sidecarFiles.length });
-        return { success: true, sidecarFiles };
+        const totalImages = imageFiles.length;
+        const imagesWithSidecars = imageFiles.filter(item => item.hasSidecar).length;
+        const imagesWithoutSidecars = totalImages - imagesWithSidecars;
+        
+        rendererLogger.info('Directory scanned successfully', { 
+          directoryPath, 
+          totalImages, 
+          imagesWithSidecars, 
+          imagesWithoutSidecars 
+        });
+        
+        return { success: true, imageFiles };
       } else {
         rendererLogger.error('Failed to scan directory', new Error(result.error), { directoryPath });
         return { success: false, error: result.error };

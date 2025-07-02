@@ -29,9 +29,22 @@ if (!container) {
 // Create React root and render the app
 const root = createRoot(container);
 try {
+  console.log('🔍 About to render <App />...');
+  rendererLogger.info('About to render App component');
+  
   root.render(<App />);
+  
+  console.log('🔍 root.render() completed...');
   rendererLogger.info('App rendered successfully');
+  
+  // Add a timer to check if React actually executed
+  setTimeout(() => {
+    console.log('🔍 Timer check: Is React execution blocked?');
+    rendererLogger.info('Timer check: React execution status');
+  }, 1000);
+  
 } catch (error) {
+  console.error('🔍 Error during render:', error);
   rendererLogger.error('Failed to render app', error as Error);
   throw error;
 }

@@ -142,7 +142,7 @@ class RendererSidecarManager {
         }
     }
     /**
-     * Scan a directory for screenshots and their sidecar files
+     * Scan a directory for all images and their optional sidecar files
      */
     async scanDirectory(directoryPath) {
         try {
@@ -151,12 +151,18 @@ class RendererSidecarManager {
             }
             const result = await window.electron.invoke('sidecar-scan-directory', directoryPath);
             if (result.success) {
-                // Extract only the sidecar file paths where hasSidecar is true
-                const sidecarFiles = result.data
-                    .filter((item) => item.hasSidecar)
-                    .map((item) => item.sidecarPath);
-                renderer_logger_1.rendererLogger.info('Directory scanned successfully', { directoryPath, count: sidecarFiles.length });
-                return { success: true, sidecarFiles };
+                // Return ALL image files (with or without sidecar files)
+                const imageFiles = result.data;
+                const totalImages = imageFiles.length;
+                const imagesWithSidecars = imageFiles.filter(item => item.hasSidecar).length;
+                const imagesWithoutSidecars = totalImages - imagesWithSidecars;
+                renderer_logger_1.rendererLogger.info('Directory scanned successfully', {
+                    directoryPath,
+                    totalImages,
+                    imagesWithSidecars,
+                    imagesWithoutSidecars
+                });
+                return { success: true, imageFiles };
             }
             else {
                 renderer_logger_1.rendererLogger.error('Failed to scan directory', new Error(result.error), { directoryPath });

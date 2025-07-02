@@ -47,8 +47,10 @@ ScreenshotOS is a high-performance screenshot tool for macOS built with Electron
 
 ### Key Utilities
 - `src/utils/jimp-native.ts` - Image processing with native bridge
-- `src/utils/jimp-helper.ts` - Jimp utility functions
 - `src/utils/capture.ts` - Screenshot capture logic
+- `src/utils/logger.ts` - Logging utilities for main process
+- `src/utils/renderer-logger.ts` - Logging utilities for renderer process
+- `src/utils/sidecar-manager.ts` - Metadata and annotation management
 - `src/config/storage.ts` - Application configuration management
 
 ### Area Selection
@@ -116,3 +118,6 @@ src/
    - No console errors or crashes
 
 This ensures changes work correctly before marking tasks as completed.
+
+# Further instructions
+after completing any changes, always build and run the app. 

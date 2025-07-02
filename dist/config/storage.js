@@ -18,7 +18,11 @@ const configFile = path_1.default.join(configDir, 'storage-config.json');
 const defaultConfig = {
     saveDirectory: path_1.default.join((0, os_1.homedir)(), 'Downloads'),
     filenameTemplate: 'screenshot_%TIMESTAMP%',
-    fileFormat: 'png'
+    fileFormat: 'png',
+    shortcuts: {
+        fullScreen: 'CommandOrControl+Shift+3',
+        areaCapture: 'CommandOrControl+Shift+4'
+    }
 };
 /**
  * Ensures the configuration directory exists

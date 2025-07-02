@@ -11,14 +11,24 @@ const configFile = path.join(configDir, 'storage-config.json');
 const defaultConfig = {
   saveDirectory: path.join(homedir(), 'Downloads'),
   filenameTemplate: 'screenshot_%TIMESTAMP%',
-  fileFormat: 'png'
+  fileFormat: 'png',
+  shortcuts: {
+    fullScreen: 'CommandOrControl+Shift+3',
+    areaCapture: 'CommandOrControl+Shift+4'
+  }
 };
 
 // Type definitions
-interface StorageConfig {
+export interface ShortcutConfig {
+  fullScreen: string;
+  areaCapture: string;
+}
+
+export interface StorageConfig {
   saveDirectory: string;
   filenameTemplate: string;
   fileFormat: string;
+  shortcuts: ShortcutConfig;
 }
 
 /**
@@ -70,9 +80,9 @@ export function saveStorageConfig(config: StorageConfig): boolean {
 /**
  * Updates a specific configuration property
  */
-export function updateStorageConfig(key: keyof StorageConfig, value: string): boolean {
+export function updateStorageConfig(key: keyof StorageConfig, value: any): boolean {
   const config = loadStorageConfig();
-  config[key] = value;
+  (config as any)[key] = value;
   return saveStorageConfig(config);
 }
 

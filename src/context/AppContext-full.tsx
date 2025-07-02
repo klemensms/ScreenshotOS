@@ -2,45 +2,19 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { rendererSidecarManager, SidecarMetadata, SidecarAnnotation, SidecarData } from '../utils/renderer-sidecar';
 import { debugLogger } from '../utils/debug-logger';
 
-// Utility function to add timeout protection to IPC calls (optimized to prevent promise accumulation)
+// Utility function to add timeout protection to IPC calls
 const ipcWithTimeout = async (channel: string, args: any, timeout: number = 10000): Promise<any> => {
   debugLogger.startOperation('IPC', `${channel}`, { timeout });
-  
-  // Use AbortController for cleaner timeout handling
-  const controller = new AbortController();
-  let timeoutId: NodeJS.Timeout | null = null;
-  
   try {
-    // Set up timeout that aborts the operation
-    timeoutId = setTimeout(() => {
-      controller.abort();
-    }, timeout);
-    
-    // Execute IPC call with proper error handling
-    const result = await window.electron.invoke(channel, args);
-    
-    // Clear timeout on success
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    
+    const result = await Promise.race([
+      window.electron.invoke(channel, args),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error(`IPC timeout: ${channel} after ${timeout}ms`)), timeout)
+      )
+    ]);
     debugLogger.endOperation('IPC', `${channel}`, { success: true });
     return result;
   } catch (error) {
-    // Clear timeout on error
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-    
-    // Check if this was a timeout abortion
-    if (controller.signal.aborted) {
-      const timeoutError = new Error(`IPC timeout: ${channel} after ${timeout}ms`);
-      debugLogger.error('IPC', `${channel}`, timeoutError);
-      throw timeoutError;
-    }
-    
     debugLogger.error('IPC', `${channel}`, error);
     throw error;
   }
@@ -161,10 +135,6 @@ export function AppProvider({ children }: AppProviderProps) {
     numberingCounter: 1,
     currentAnnotation: null
   });
-  
-  // Refs to track timeouts for proper cleanup
-  const loadingTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   // Debug: Monitor state changes
   React.useEffect(() => {
@@ -180,25 +150,6 @@ export function AppProvider({ children }: AppProviderProps) {
   React.useEffect(() => {
     debugLogger.log('AppContext', 'state: drawingState', drawingState);
   }, [drawingState]);
-
-  // Cleanup effect to prevent timer leaks on unmount
-  useEffect(() => {
-    return () => {
-      // Clear any pending timeouts
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-        loadingTimeoutRef.current = null;
-      }
-      
-      // Abort any ongoing operations
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      
-      console.log('🧹 [APP_CONTEXT] Cleanup: cleared all timeouts and aborted operations');
-    };
-  }, []);
 
   // Load existing screenshots on app startup
   useEffect(() => {
@@ -274,23 +225,17 @@ export function AppProvider({ children }: AppProviderProps) {
       
       const startTime = performance.now();
       
-      // Load the current save directory from storage config - no hardcoded fallback
+      // Load the current save directory from storage config instead of hardcoding
       const config = await ipcWithTimeout('load-storage-config', undefined, 5000);
+      const downloadsPath = config?.saveDirectory || '/Users/klemensstelk/Downloads';
       
-      if (!config?.saveDirectory) {
-        console.error('❌ [LOADING] No save directory configured in storage config');
-        throw new Error('Save directory not configured. Please set a save directory in settings.');
-      }
-      
-      const saveDirectory = config.saveDirectory;
-      
-      // Add timeout to entire loading process to prevent hanging (stored in ref for cleanup)
-      loadingTimeoutRef.current = setTimeout(() => {
+      // Add timeout to entire loading process to prevent hanging (reduced console noise)
+      const loadingTimeout = setTimeout(() => {
         console.warn('⚠️ [LOADING] Loading process is taking longer than expected (30s)');
       }, 30000);
       
-      console.log('🔄 [LOADING] Scanning directory from config:', saveDirectory);
-      const result = await rendererSidecarManager.scanDirectory(saveDirectory);
+      console.log('🔄 [LOADING] Scanning directory from config:', downloadsPath);
+      const result = await rendererSidecarManager.scanDirectory(downloadsPath);
       
       if (result.success && result.imageFiles) {
         // Pre-filter files by size to prevent memory overload
@@ -423,8 +368,7 @@ export function AppProvider({ children }: AppProviderProps) {
                     color: ann.color,
                     position: ann.position,
                     text: ann.text,
-                    number: ann.number,
-                    blurIntensity: ann.blurIntensity
+                    number: ann.number
                   })) || [],
                   hasSidecar: true
                 };
@@ -511,10 +455,7 @@ export function AppProvider({ children }: AppProviderProps) {
         const loadTime = Math.round(endTime - startTime);
         
         // Clear the loading timeout since we completed successfully
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current);
-          loadingTimeoutRef.current = null;
-        }
+        clearTimeout(loadingTimeout);
         
         console.log(`✅ [LOADING] Successfully loaded ${loadedScreenshots.length} screenshots in ${loadTime}ms`);
         console.log('✅ [LOADING] Final memory usage:', 
@@ -522,17 +463,11 @@ export function AppProvider({ children }: AppProviderProps) {
       } else {
         console.log('ℹ️ [LOADING] No images found or scan failed');
         // Clear timeout even if no images found
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current);
-          loadingTimeoutRef.current = null;
-        }
+        clearTimeout(loadingTimeout);
       }
     } catch (error) {
       // Clear timeout in error cases to prevent memory leaks
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-        loadingTimeoutRef.current = null;
-      }
+      clearTimeout(loadingTimeout);
       console.error('❌ [LOADING] Critical error in loadExistingScreenshots:', error);
       console.error('❌ [LOADING] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     }
@@ -625,8 +560,7 @@ export function AppProvider({ children }: AppProviderProps) {
                   color: ann.color,
                   position: ann.position,
                   text: ann.text,
-                  number: ann.number,
-                  blurIntensity: ann.blurIntensity
+                  number: ann.number
                 })) || [],
                 hasSidecar: true
               };
@@ -716,7 +650,6 @@ export function AppProvider({ children }: AppProviderProps) {
           position: ann.position,
           text: ann.text,
           number: ann.number,
-          blurIntensity: ann.blurIntensity,
           createdAt: new Date().toISOString(),
           modifiedAt: new Date().toISOString(),
           visible: true,
@@ -806,7 +739,7 @@ export function AppProvider({ children }: AppProviderProps) {
       const area = await ipcWithTimeout('trigger-area-overlay', undefined, 30000);
       if (area) {
         // Then capture the selected area with display ID
-        const result = await ipcWithTimeout('capture-area', { area, displayId: area.displayId }, 15000);
+        const result = await ipcWithTimeout('capture-area', [area, area.displayId], 15000);
         if (result) {
           const screenshot: Screenshot = {
             id: `screenshot-${Date.now()}`,
@@ -866,7 +799,6 @@ export function AppProvider({ children }: AppProviderProps) {
             position: annotation.position,
             text: annotation.text,
             number: annotation.number,
-            blurIntensity: annotation.blurIntensity,
             createdAt: new Date().toISOString(),
             modifiedAt: new Date().toISOString(),
             visible: true,

@@ -21,6 +21,7 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             'capture-fullscreen',
             'capture-area',
             'save-screenshot',
+            'copy-screenshot-to-clipboard',
             'load-storage-config',
             'save-storage-config',
             'select-directory',
@@ -37,7 +38,10 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             'sidecar-scan-directory',
             'sidecar-delete',
             'file-exists',
-            'read-image-file'
+            'file-stats',
+            'read-image-file',
+            'validate-shortcut',
+            'test-shortcuts'
         ];
         if (validChannels.includes(channel)) {
             return electron_1.ipcRenderer.invoke.apply(electron_1.ipcRenderer, __spreadArray([channel], args, false));
@@ -62,5 +66,11 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             stack: error === null || error === void 0 ? void 0 : error.stack,
             extra: extra
         });
+    },
+    onNewScreenshot: function (callback) {
+        electron_1.ipcRenderer.on('new-screenshot-created', function (event, data) { return callback(data); });
+    },
+    removeNewScreenshotListener: function (callback) {
+        electron_1.ipcRenderer.removeListener('new-screenshot-created', callback);
     }
 });

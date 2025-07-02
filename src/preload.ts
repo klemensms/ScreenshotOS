@@ -7,6 +7,8 @@ interface ElectronAPI {
   getRecentLogs: (lines?: number) => Promise<string>;
   getLogPath: () => Promise<string>;
   logFromRenderer: (level: string, message: string, error?: any, extra?: any) => Promise<void>;
+  onNewScreenshot: (callback: (data: any) => void) => void;
+  removeNewScreenshotListener: (callback: (data: any) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use IPC
@@ -16,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
       'capture-fullscreen',
       'capture-area',
       'save-screenshot',
+      'copy-screenshot-to-clipboard',
       'load-storage-config',
       'save-storage-config',
       'select-directory',
@@ -32,7 +35,10 @@ contextBridge.exposeInMainWorld('electron', {
       'sidecar-scan-directory',
       'sidecar-delete',
       'file-exists',
-      'read-image-file'
+      'file-stats',
+      'read-image-file',
+      'validate-shortcut',
+      'test-shortcuts'
     ];
     
     if (validChannels.includes(channel)) {
@@ -58,6 +64,12 @@ contextBridge.exposeInMainWorld('electron', {
       stack: error?.stack,
       extra
     });
+  },
+  onNewScreenshot: (callback: (data: any) => void) => {
+    ipcRenderer.on('new-screenshot-created', (event, data) => callback(data));
+  },
+  removeNewScreenshotListener: (callback: (data: any) => void) => {
+    ipcRenderer.removeListener('new-screenshot-created', callback);
   }
 } as ElectronAPI);
 

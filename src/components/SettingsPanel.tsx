@@ -21,6 +21,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isVisible, onClose }) => 
   const [filenameTemplate, setFilenameTemplate] = useState('');
   const [fileFormat, setFileFormat] = useState('png');
   const [statusMessage, setStatusMessage] = useState('');
+  const [fullScreenShortcut, setFullScreenShortcut] = useState('');
+  const [areaCaptureShortcut, setAreaCaptureShortcut] = useState('');
+  const [shortcutValidation, setShortcutValidation] = useState<{[key: string]: string}>({});
 
   // Load settings when the component mounts
   useEffect(() => {
@@ -31,6 +34,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isVisible, onClose }) => 
           setSaveDir(result.saveDirectory);
           setFilenameTemplate(result.filenameTemplate);
           setFileFormat(result.fileFormat);
+          setFullScreenShortcut(result.shortcuts?.fullScreen || 'CommandOrControl+Shift+3');
+          setAreaCaptureShortcut(result.shortcuts?.areaCapture || 'CommandOrControl+Shift+4');
         })
         .catch(err => {
           console.error('Failed to load settings:', err);
@@ -38,6 +43,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isVisible, onClose }) => 
         });
     }
   }, [isVisible]);
+
+  // Validate shortcut function
+  const validateShortcut = async (shortcut: string, field: string) => {
+    if (!shortcut) {
+      setShortcutValidation(prev => ({ ...prev, [field]: '' }));
+      return;
+    }
+
+    try {
+      const result = await window.electron.invoke('validate-shortcut', shortcut);
+      if (result.valid) {
+        setShortcutValidation(prev => ({ ...prev, [field]: '' }));
+      } else {
+        setShortcutValidation(prev => ({ ...prev, [field]: result.reason }));
+      }
+    } catch (error) {
+      setShortcutValidation(prev => ({ ...prev, [field]: 'Invalid shortcut format' }));
+    }
+  };
+
+  // Handle shortcut input changes with validation
+  const handleShortcutChange = (value: string, field: string, setter: (val: string) => void) => {
+    setter(value);
+    // Debounce validation to avoid too many calls
+    setTimeout(() => validateShortcut(value, field), 500);
+  };
 
   // Handle save directory selection
   const handleSelectDirectory = async () => {
@@ -50,10 +81,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isVisible, onClose }) => 
   // Handle save button click
   const handleSave = async () => {
     try {
+      // Check if shortcuts have validation errors
+      const hasErrors = Object.values(shortcutValidation).some(error => error !== '');
+      if (hasErrors) {
+        setStatusMessage('Please fix shortcut errors before saving.');
+        return;
+      }
+
       const success = await window.electron.invoke('save-storage-config', {
         saveDirectory: saveDir,
         filenameTemplate,
-        fileFormat
+        fileFormat,
+        shortcuts: {
+          fullScreen: fullScreenShortcut,
+          areaCapture: areaCaptureShortcut
+        }
       });
       
       if (success) {
@@ -117,6 +159,36 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ isVisible, onClose }) => 
             <option value="png">PNG</option>
             <option value="jpg">JPG</option>
           </select>
+        </div>
+        
+        <div className="settings-group">
+          <label>Full Screen Capture Shortcut:</label>
+          <input 
+            type="text" 
+            value={fullScreenShortcut}
+            onChange={(e) => handleShortcutChange(e.target.value, 'fullScreen', setFullScreenShortcut)}
+            placeholder="CommandOrControl+Shift+3"
+            style={{ borderColor: shortcutValidation.fullScreen ? '#F44336' : undefined }}
+          />
+          {shortcutValidation.fullScreen && (
+            <p className="hint" style={{ color: '#F44336' }}>{shortcutValidation.fullScreen}</p>
+          )}
+          <p className="hint">Examples: CommandOrControl+Shift+3, Alt+F1, F12</p>
+        </div>
+        
+        <div className="settings-group">
+          <label>Area Capture Shortcut:</label>
+          <input 
+            type="text" 
+            value={areaCaptureShortcut}
+            onChange={(e) => handleShortcutChange(e.target.value, 'areaCapture', setAreaCaptureShortcut)}
+            placeholder="CommandOrControl+Shift+4"
+            style={{ borderColor: shortcutValidation.areaCapture ? '#F44336' : undefined }}
+          />
+          {shortcutValidation.areaCapture && (
+            <p className="hint" style={{ color: '#F44336' }}>{shortcutValidation.areaCapture}</p>
+          )}
+          <p className="hint">Examples: CommandOrControl+Shift+4, Alt+F2, F11</p>
         </div>
         
         {statusMessage && (

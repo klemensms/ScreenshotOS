@@ -5,18 +5,36 @@ import {
   Type,
   Hash,
   Palette,
+  EyeOff,
 } from "lucide-react";
 import { useApp } from '../context/AppContext';
 
 export function Toolbar() {
-  const { drawingState, updateDrawingState } = useApp();
+  const { currentScreenshot, drawingState, updateDrawingState } = useApp();
   const [showColorPicker, setShowColorPicker] = useState(false);
+
+  // Don't show toolbar if no screenshot is selected or if it's a GIF
+  if (!currentScreenshot) {
+    return null;
+  }
+
+  const isGif = currentScreenshot.filePath?.toLowerCase().endsWith('.gif');
+  if (isGif) {
+    return (
+      <div className="bg-gray-100 border-b border-gray-300 px-4 py-2">
+        <div className="flex items-center justify-center text-gray-500">
+          <span className="text-sm">Editing tools are not available for GIF files</span>
+        </div>
+      </div>
+    );
+  }
 
   const tools = [
     { id: "arrow", icon: MousePointer, label: "Arrow" },
     { id: "rectangle", icon: Square, label: "Rectangle" },
     { id: "text", icon: Type, label: "Text" },
     { id: "numbering", icon: Hash, label: "Numbering" },
+    { id: "blur", icon: EyeOff, label: "Blur" },
   ] as const;
 
   const colors = [
@@ -30,13 +48,17 @@ export function Toolbar() {
     { id: "black", hex: "#000000", name: "Black" },
   ];
 
-  const handleToolSelect = (toolId: 'arrow' | 'rectangle' | 'text' | 'numbering') => {
+  const handleToolSelect = (toolId: 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur') => {
     updateDrawingState({ selectedTool: toolId });
   };
 
   const handleColorSelect = (colorHex: string) => {
     updateDrawingState({ selectedColor: colorHex });
     setShowColorPicker(false);
+  };
+
+  const handleBlurIntensityChange = (intensity: number) => {
+    updateDrawingState({ blurIntensity: intensity });
   };
 
   const renderToolPreview = () => {
@@ -105,7 +127,18 @@ export function Toolbar() {
                 color: drawingState.selectedColor,
               }}
             >
-              1
+              {drawingState.numberingCounter}
+            </div>
+          </div>
+        );
+      case "blur":
+        return (
+          <div className="w-16 h-12 bg-gray-50 border border-gray-200 rounded flex items-center justify-center">
+            <div 
+              className="w-10 h-6 bg-blue-500 rounded relative overflow-hidden"
+              style={{ filter: `blur(${Math.max(1, drawingState.blurIntensity / 4)}px)` }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-600"></div>
             </div>
           </div>
         );
@@ -143,41 +176,56 @@ export function Toolbar() {
         {/* Separator */}
         <div className="w-px h-8 bg-gray-300"></div>
 
-        {/* Color Picker */}
-        <div className="relative">
-          <button
-            onClick={() => setShowColorPicker(!showColorPicker)}
-            className="flex items-center gap-2 p-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-            title="Color Picker"
-          >
-            <div
-              className="w-5 h-5 rounded border border-gray-400"
-              style={{ backgroundColor: drawingState.selectedColor }}
-            ></div>
-            <Palette className="w-4 h-4 text-gray-700" />
-          </button>
+        {/* Color Picker or Blur Intensity */}
+        {drawingState.selectedTool === 'blur' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Intensity:</span>
+            <input
+              type="range"
+              min="2"
+              max="20"
+              value={drawingState.blurIntensity}
+              onChange={(e) => handleBlurIntensityChange(Number(e.target.value))}
+              className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <span className="text-sm text-gray-600 w-8">{drawingState.blurIntensity}px</span>
+          </div>
+        ) : (
+          <div className="relative">
+            <button
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              className="flex items-center gap-2 p-2 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              title="Color Picker"
+            >
+              <div
+                className="w-5 h-5 rounded border border-gray-400"
+                style={{ backgroundColor: drawingState.selectedColor }}
+              ></div>
+              <Palette className="w-4 h-4 text-gray-700" />
+            </button>
 
-          {/* Color Picker Dropdown */}
-          {showColorPicker && (
-            <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
-              <div className="grid grid-cols-4 gap-1">
-                {colors.map((color) => (
-                  <button
-                    key={color.id}
-                    onClick={() => handleColorSelect(color.hex)}
-                    className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
-                      drawingState.selectedColor === color.hex
-                        ? "border-gray-800 ring-2 ring-gray-300"
-                        : "border-gray-300"
-                    }`}
-                    style={{ backgroundColor: color.hex }}
-                    title={color.name}
-                  />
-                ))}
+            {/* Color Picker Dropdown */}
+            {showColorPicker && (
+              <div className="absolute top-full left-0 mt-1 p-2 bg-white border border-gray-300 rounded shadow-lg z-10">
+                <div className="grid grid-cols-4 gap-1">
+                  {colors.map((color) => (
+                    <button
+                      key={color.id}
+                      onClick={() => handleColorSelect(color.hex)}
+                      className={`w-6 h-6 rounded border-2 transition-all hover:scale-110 ${
+                        drawingState.selectedColor === color.hex
+                          ? "border-gray-800 ring-2 ring-gray-300"
+                          : "border-gray-300"
+                      }`}
+                      style={{ backgroundColor: color.hex }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Separator */}
         <div className="w-px h-8 bg-gray-300"></div>
@@ -201,10 +249,22 @@ export function Toolbar() {
               {drawingState.selectedTool}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span>Color:</span>
-            <span className="font-medium">{drawingState.selectedColor}</span>
-          </div>
+          {drawingState.selectedTool === 'blur' ? (
+            <div className="flex items-center gap-2">
+              <span>Intensity:</span>
+              <span className="font-medium">{drawingState.blurIntensity}px</span>
+            </div>
+          ) : drawingState.selectedTool === 'numbering' ? (
+            <div className="flex items-center gap-2">
+              <span>Next Number:</span>
+              <span className="font-medium">{drawingState.numberingCounter}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span>Color:</span>
+              <span className="font-medium">{drawingState.selectedColor}</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

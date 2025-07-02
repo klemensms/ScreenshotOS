@@ -84,7 +84,7 @@ class SidecarManager {
    */
   getSidecarPath(imagePath: string): string {
     const parsedPath = path.parse(imagePath);
-    return path.join(parsedPath.dir, parsedPath.name + this.SIDECAR_EXTENSION);
+    return path.join(parsedPath.dir, parsedPath.base + this.SIDECAR_EXTENSION);
   }
 
   /**
@@ -106,6 +106,12 @@ class SidecarManager {
    */
   async verifyImageIntegrity(imagePath: string, expectedChecksum: string): Promise<boolean> {
     try {
+      // First check if the file exists
+      if (!fs.existsSync(imagePath)) {
+        console.warn(`Image file does not exist: ${imagePath}`);
+        return false;
+      }
+      
       const actualChecksum = await this.calculateImageChecksum(imagePath);
       return actualChecksum === expectedChecksum;
     } catch (error) {
@@ -172,10 +178,14 @@ class SidecarManager {
         console.warn(`Sidecar file version ${sidecarData.version} may be incompatible with current version ${this.SIDECAR_VERSION}`);
       }
 
-      // Verify image integrity
-      const isValid = await this.verifyImageIntegrity(imagePath, sidecarData.originalImageChecksum);
-      if (!isValid) {
-        console.warn(`Image integrity check failed for ${imagePath}`);
+      // Verify image integrity only if the image file exists
+      if (fs.existsSync(imagePath)) {
+        const isValid = await this.verifyImageIntegrity(imagePath, sidecarData.originalImageChecksum);
+        if (!isValid) {
+          console.warn(`Image integrity check failed for ${imagePath}`);
+        }
+      } else {
+        console.warn(`Original image file not found: ${imagePath}`);
       }
 
       return sidecarData;
@@ -310,31 +320,81 @@ class SidecarManager {
    */
   async scanDirectory(directoryPath: string): Promise<Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}>> {
     try {
-      const files = await fs.promises.readdir(directoryPath);
-      const imageExtensions = ['.png', '.jpg', '.jpeg'];
-      const results: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}> = [];
+      const files = await fs.promises.readdir(directoryPath, { withFileTypes: true });
+      const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.tiff', '.tif'];
+      const imageFiles: Array<{fileName: string, filePath: string, stat: fs.Stats}> = [];
 
-      for (const file of files) {
-        const filePath = path.join(directoryPath, file);
-        const ext = path.extname(file).toLowerCase();
-        
-        if (imageExtensions.includes(ext)) {
-          const sidecarPath = this.getSidecarPath(filePath);
-          const hasSidecar = fs.existsSync(sidecarPath);
-          
-          results.push({
-            imagePath: filePath,
-            sidecarPath,
-            hasSidecar
-          });
+      // First pass: collect all image files with their stats
+      for (const dirent of files) {
+        if (dirent.isFile()) {
+          const ext = path.extname(dirent.name).toLowerCase();
+          if (imageExtensions.includes(ext)) {
+            const filePath = path.join(directoryPath, dirent.name);
+            try {
+              const stat = await fs.promises.stat(filePath);
+              imageFiles.push({
+                fileName: dirent.name,
+                filePath,
+                stat
+              });
+            } catch (error) {
+              // Skip files that can't be stat'd
+              console.warn(`Cannot stat file: ${filePath}`, error);
+            }
+          }
         }
       }
 
+      // Sort by modification time (newest first) and limit to reasonable number
+      const MAX_FILES_TO_SCAN = 50; // Process only the 50 most recent files
+      const sortedFiles = imageFiles
+        .sort((a, b) => b.stat.mtime.getTime() - a.stat.mtime.getTime())
+        .slice(0, MAX_FILES_TO_SCAN);
+
+      console.log(`📁 [SCAN] Found ${imageFiles.length} total images, processing ${sortedFiles.length} most recent files`);
+
+      const results: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}> = [];
+
+      // Second pass: process only the most recent files
+      for (const imageFile of sortedFiles) {
+        const sidecarPath = this.getSidecarPath(imageFile.filePath);
+        let hasSidecar = fs.existsSync(sidecarPath);
+        
+        // Check for legacy sidecar files (without .png extension) and migrate them
+        if (!hasSidecar) {
+          const legacySidecarPath = this.getLegacySidecarPath(imageFile.filePath);
+          if (fs.existsSync(legacySidecarPath)) {
+            console.log(`Migrating legacy sidecar file: ${legacySidecarPath} -> ${sidecarPath}`);
+            try {
+              await fs.promises.rename(legacySidecarPath, sidecarPath);
+              hasSidecar = true;
+            } catch (error) {
+              console.error('Failed to migrate legacy sidecar file:', error);
+            }
+          }
+        }
+        
+        results.push({
+          imagePath: imageFile.filePath,
+          sidecarPath,
+          hasSidecar
+        });
+      }
+
+      console.log(`📁 [SCAN] Returning ${results.length} image files for processing`);
       return results;
     } catch (error) {
       console.error('Error scanning directory:', error);
       return [];
     }
+  }
+
+  /**
+   * Get legacy sidecar path (without .png extension) for migration
+   */
+  private getLegacySidecarPath(imagePath: string): string {
+    const parsedPath = path.parse(imagePath);
+    return path.join(parsedPath.dir, parsedPath.name + this.SIDECAR_EXTENSION);
   }
 
   /**
