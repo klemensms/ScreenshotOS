@@ -41,7 +41,7 @@ export function QuickTags() {
   };
 
   return (
-    <div className="bg-gray-100 border-l border-r border-gray-300 w-12 h-full flex flex-col items-center py-4 gap-3">
+    <div className="bg-gray-100 border-l border-r border-gray-300 h-full flex flex-col items-center py-4 gap-3" style={{ paddingLeft: '7px', paddingRight: '7px' }}>
       {tags.map((tag) => {
         const IconComponent = tag.icon;
         const isSelected = selectedTags.includes(tag.id);

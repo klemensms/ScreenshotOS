@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Edit2, Save, X, FileText, Monitor, Calendar, Ruler, Palette, Tag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -6,6 +6,7 @@ export function FileMetaData() {
   const { currentScreenshot, updateScreenshotNotes } = useApp();
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync notes with current screenshot
   useEffect(() => {
@@ -16,15 +17,19 @@ export function FileMetaData() {
     }
   }, [currentScreenshot]);
 
+
   // Return early if no screenshot is selected
   if (!currentScreenshot) {
     return (
-      <div className="bg-white border-l border-r border-gray-300 w-72 h-full flex flex-col">
-        <div className="bg-gray-100 border-b border-gray-300 px-3 py-2">
+      <div 
+        ref={containerRef}
+        className="bg-white border-r border-gray-300 h-full flex flex-col w-full"
+      >
+        <div className="bg-gray-100 border-b border-gray-300 py-2 px-3">
           <h3 className="text-sm text-gray-700">FILE META DATA</h3>
         </div>
-        <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-gray-500 text-sm text-center">Select a screenshot to view metadata</p>
+        <div className="flex-1 flex items-center justify-center py-4 px-3">
+          <p className="text-gray-500 text-sm text-center break-words">Select a screenshot to view metadata</p>
         </div>
       </div>
     );
@@ -74,14 +79,17 @@ export function FileMetaData() {
   };
 
   return (
-    <div className="bg-white border-l border-r border-gray-300 w-72 h-full flex flex-col">
+    <div 
+      ref={containerRef}
+      className="bg-white border-r border-gray-300 h-full flex flex-col w-full"
+    >
       {/* Header */}
-      <div className="bg-gray-100 border-b border-gray-300 px-3 py-2">
+      <div className="bg-gray-100 border-b border-gray-300 py-2 px-3">
         <h3 className="text-sm text-gray-700">FILE META DATA</h3>
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-auto p-3 space-y-4">
+      <div className="flex-1 overflow-auto py-3 space-y-4 px-3">
         
         {/* File Information */}
         <div className="space-y-2">
@@ -91,34 +99,34 @@ export function FileMetaData() {
           </h4>
           
           <div className="space-y-1 text-xs">
-            <div>
-              <span className="text-gray-600">Name:</span>
-              <div className="text-gray-800 break-all mt-1">{metadata.fileName}</div>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Name:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.fileName}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Size:</span>
-              <span className="text-gray-800">{metadata.fileSize}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Size:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.fileSize}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Dimensions:</span>
-              <span className="text-gray-800">{metadata.dimensions}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Dimensions:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.dimensions}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Format:</span>
-              <span className="text-gray-800">{metadata.format}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Format:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.format}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Color Depth:</span>
-              <span className="text-gray-800">{metadata.colorDepth}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Color Depth:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.colorDepth}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">DPI:</span>
-              <span className="text-gray-800">{metadata.dpi}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">DPI:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.dpi}</span>
             </div>
           </div>
         </div>
@@ -131,24 +139,24 @@ export function FileMetaData() {
           </h4>
           
           <div className="space-y-1 text-xs">
-            <div>
-              <span className="text-gray-600">Application:</span>
-              <div className="text-gray-800 mt-1">{metadata.application}</div>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Application:</span>
+              <span className="text-gray-800 text-right">{metadata.application}</span>
             </div>
             
-            <div>
-              <span className="text-gray-600">Window Title:</span>
-              <div className="text-gray-800 break-all mt-1">{metadata.windowTitle}</div>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Window Title:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.windowTitle}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Capture Method:</span>
-              <span className="text-gray-800">{metadata.captureMethod}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Capture Method:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.captureMethod}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Type:</span>
-              <span className="text-gray-800">{metadata.screenshotType}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Type:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.screenshotType}</span>
             </div>
           </div>
         </div>
@@ -161,14 +169,14 @@ export function FileMetaData() {
           </h4>
           
           <div className="space-y-1 text-xs">
-            <div>
-              <span className="text-gray-600">Created:</span>
-              <div className="text-gray-800 mt-1">{metadata.createdDate}</div>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Created:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.createdDate}</span>
             </div>
             
-            <div>
-              <span className="text-gray-600">Modified:</span>
-              <div className="text-gray-800 mt-1">{metadata.modifiedDate}</div>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Modified:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.modifiedDate}</span>
             </div>
           </div>
         </div>
@@ -249,7 +257,7 @@ export function FileMetaData() {
           
           {!isEditingNotes ? (
             <div className="bg-gray-50 border border-gray-200 rounded p-2 min-h-16">
-              <p className="text-xs text-gray-800">{notes}</p>
+              <p className="text-xs text-gray-800 break-words whitespace-pre-wrap">{notes}</p>
             </div>
           ) : (
             <textarea
@@ -269,24 +277,24 @@ export function FileMetaData() {
           </h4>
           
           <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Compression:</span>
-              <span className="text-gray-800">{metadata.compression}</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Compression:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.compression}</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Pixel Ratio:</span>
-              <span className="text-gray-800">1:1</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Pixel Ratio:</span>
+              <span className="text-gray-800 break-words text-right">1:1</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Bit Depth:</span>
-              <span className="text-gray-800">8 bits/channel</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Bit Depth:</span>
+              <span className="text-gray-800 break-words text-right">8 bits/channel</span>
             </div>
             
-            <div className="flex justify-between">
-              <span className="text-gray-600">Color Space:</span>
-              <span className="text-gray-800">sRGB</span>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Color Space:</span>
+              <span className="text-gray-800 break-words text-right">sRGB</span>
             </div>
           </div>
         </div>

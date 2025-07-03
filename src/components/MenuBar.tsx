@@ -29,7 +29,6 @@ export function MenuBar() {
       <div className="flex items-center justify-between">
         {/* Left side - App title */}
         <div className="flex items-center">
-          <span className="text-sm font-medium text-gray-700">ScreenshotOS</span>
         </div>
         
         {/* Center - Action Buttons */}
@@ -58,10 +57,6 @@ export function MenuBar() {
             <Copy className="w-4 h-4" />
             Copy
           </button>
-        </div>
-
-        {/* Right side - Settings and Debug */}
-        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSettingsPanel(true)}
             className="flex items-center gap-1 px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
@@ -69,9 +64,13 @@ export function MenuBar() {
             <Settings className="w-4 h-4" />
             Settings
           </button>
+        </div>
+
+        {/* Right side - Debug only (hidden) */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowDebugPanel(true)}
-            className="p-1 hover:bg-gray-200 rounded transition-colors"
+            className="p-1 hover:bg-gray-200 rounded transition-colors opacity-0 pointer-events-none"
             title="Debug Panel (Ctrl+Shift+L)"
           >
             <Bug className="w-4 h-4 text-gray-600" />

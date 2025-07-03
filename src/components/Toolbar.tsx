@@ -6,6 +6,7 @@ import {
   Hash,
   Palette,
   EyeOff,
+  Move,
 } from "lucide-react";
 import { useApp } from '../context/AppContext';
 
@@ -30,6 +31,7 @@ export function Toolbar() {
   }
 
   const tools = [
+    { id: "select", icon: Move, label: "Select" },
     { id: "arrow", icon: MousePointer, label: "Arrow" },
     { id: "rectangle", icon: Square, label: "Rectangle" },
     { id: "text", icon: Type, label: "Text" },
@@ -48,8 +50,11 @@ export function Toolbar() {
     { id: "black", hex: "#000000", name: "Black" },
   ];
 
-  const handleToolSelect = (toolId: 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur') => {
-    updateDrawingState({ selectedTool: toolId });
+  const handleToolSelect = (toolId: 'select' | 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur') => {
+    updateDrawingState({ 
+      selectedTool: toolId,
+      selectedAnnotations: [] // Clear selection when switching tools
+    });
   };
 
   const handleColorSelect = (colorHex: string) => {
@@ -63,6 +68,17 @@ export function Toolbar() {
 
   const renderToolPreview = () => {
     switch (drawingState.selectedTool) {
+      case "select":
+        return (
+          <div className="w-16 h-12 bg-gray-50 border border-gray-200 rounded flex items-center justify-center">
+            <div className="w-8 h-6 border-2 border-dashed border-blue-500 rounded relative">
+              <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-500 rounded-sm"></div>
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-sm"></div>
+              <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-500 rounded-sm"></div>
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-500 rounded-sm"></div>
+            </div>
+          </div>
+        );
       case "arrow":
         return (
           <div className="w-16 h-12 bg-gray-50 border border-gray-200 rounded flex items-center justify-center">
@@ -238,9 +254,6 @@ export function Toolbar() {
           {renderToolPreview()}
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1"></div>
-
         {/* Tool Properties */}
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <div className="flex items-center gap-2">
@@ -266,6 +279,9 @@ export function Toolbar() {
             </div>
           )}
         </div>
+
+        {/* Spacer */}
+        <div className="flex-1"></div>
       </div>
     </div>
   );

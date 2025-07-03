@@ -7,6 +7,7 @@ exports.loadStorageConfig = loadStorageConfig;
 exports.saveStorageConfig = saveStorageConfig;
 exports.updateStorageConfig = updateStorageConfig;
 exports.ensureSaveDirectory = ensureSaveDirectory;
+exports.ensureArchiveDirectory = ensureArchiveDirectory;
 const electron_1 = require("electron");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -17,8 +18,11 @@ const configFile = path_1.default.join(configDir, 'storage-config.json');
 // Default config
 const defaultConfig = {
     saveDirectory: path_1.default.join((0, os_1.homedir)(), 'Downloads'),
+    archiveDirectory: path_1.default.join((0, os_1.homedir)(), 'Downloads', 'Archive'),
     filenameTemplate: 'screenshot_%TIMESTAMP%',
     fileFormat: 'png',
+    deleteConfirmation: true,
+    archiveConfirmation: false,
     shortcuts: {
         fullScreen: 'CommandOrControl+Shift+3',
         areaCapture: 'CommandOrControl+Shift+4'
@@ -85,4 +89,16 @@ function ensureSaveDirectory(directory) {
         console.log(`Created screenshot directory: ${saveDir}`);
     }
     return saveDir;
+}
+/**
+ * Ensures the archive directory exists
+ */
+function ensureArchiveDirectory(directory) {
+    const config = loadStorageConfig();
+    const archiveDir = directory || config.archiveDirectory;
+    if (!fs_1.default.existsSync(archiveDir)) {
+        fs_1.default.mkdirSync(archiveDir, { recursive: true });
+        console.log(`Created archive directory: ${archiveDir}`);
+    }
+    return archiveDir;
 }

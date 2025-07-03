@@ -12,10 +12,17 @@ const storage_1 = require("./config/storage");
 const jimp_native_1 = require("./utils/jimp-native");
 const logger_1 = require("./utils/logger");
 const sidecar_manager_1 = require("./utils/sidecar-manager");
+const ImageIndexer_1 = require("./services/ImageIndexer");
+const ThumbnailCache_1 = require("./services/ThumbnailCache");
+const FileManager_1 = require("./services/FileManager");
 // Get screenshot save directory from config
 let screenshotSaveDir = (0, storage_1.loadStorageConfig)().saveDirectory;
 // Global shortcuts state
 let currentShortcuts = null;
+// Image indexer instance
+let imageIndexer = null;
+// Thumbnail cache instance
+let thumbnailCache = null;
 // Ensure the save directory exists
 function ensureSaveDirectoryExists() {
     screenshotSaveDir = (0, storage_1.ensureSaveDirectory)(screenshotSaveDir);
@@ -43,6 +50,12 @@ async function saveScreenshot(imgBuffer) {
                 return;
             }
             console.log(`Screenshot saved to: ${filePath}`);
+            // Add to image index if available
+            if (imageIndexer) {
+                imageIndexer.addImage(filePath).catch((error) => {
+                    logger_1.logger.warn('main', 'Failed to add image to index', error);
+                });
+            }
             resolve(filePath);
         });
     });
@@ -173,26 +186,20 @@ async function triggerAreaCapture() {
         // Show overlay and get area
         const area = await selectAreaOnScreen();
         if (area) {
-            // For shortcuts, the overlay coordinates are already correctly positioned
-            // We need to apply scale factor but NOT the coordinate transformation again
-            const allDisplays = electron_1.screen.getAllDisplays();
-            const targetDisplay = allDisplays.find(d => d.id === area.displayId) || allDisplays[0];
-            const scaleFactor = targetDisplay.scaleFactor;
-            // Apply only scale factor transformation (overlay coordinates are already correct)
-            const physicalX = Math.round(area.x * scaleFactor);
-            const physicalY = Math.round(area.y * scaleFactor);
-            const physicalWidth = Math.round(area.width * scaleFactor);
-            const physicalHeight = Math.round(area.height * scaleFactor);
-            console.log('Direct scale factor transformation for shortcut:', {
-                overlay: { x: area.x, y: area.y, width: area.width, height: area.height },
-                physical: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight },
-                scaleFactor,
-                displayId: area.displayId
+            // ===== UNIFIED COORDINATE TRANSFORMATION =====
+            // Use the same transformation logic as the IPC path for consistency
+            const areaWithDisplayId = { ...area, displayId: area.displayId };
+            const transformedArea = transformOverlayToScreenCoordinates(areaWithDisplayId);
+            console.log('🔄 [SHORTCUT_CAPTURE] Using unified coordinate transformation:', {
+                originalOverlay: area,
+                transformedPhysical: transformedArea,
+                method: 'unified_transformation'
             });
             // Capture the specific display if displayId is provided
             let imgBuffer;
             if (area.displayId) {
-                const targetDisplayIndex = allDisplays.findIndex(d => d.id === area.displayId);
+                const allDisplays = electron_1.screen.getAllDisplays();
+                const targetDisplayIndex = allDisplays.findIndex((d) => d.id === area.displayId);
                 if (targetDisplayIndex !== -1) {
                     console.log('Capturing specific display for shortcut:', area.displayId);
                     imgBuffer = await (0, screenshot_desktop_1.default)({
@@ -208,8 +215,14 @@ async function triggerAreaCapture() {
             else {
                 imgBuffer = await (0, screenshot_desktop_1.default)({ format: 'png' });
             }
-            // Use our helper to crop the image with Jimp using direct coordinates
-            const croppedBuffer = await (0, jimp_native_1.cropImage)(imgBuffer, physicalX, physicalY, physicalWidth, physicalHeight);
+            // Use our helper to crop the image with Jimp using transformed coordinates
+            console.log('🔪 [SHORTCUT_CAPTURE] Cropping image with transformed coordinates:', {
+                x: transformedArea.x,
+                y: transformedArea.y,
+                width: transformedArea.width,
+                height: transformedArea.height
+            });
+            const croppedBuffer = await (0, jimp_native_1.cropImage)(imgBuffer, transformedArea.x, transformedArea.y, transformedArea.width, transformedArea.height);
             // Save the cropped screenshot
             const filePath = await saveScreenshot(croppedBuffer);
             console.log('Cropped screenshot saved to:', filePath);
@@ -270,7 +283,7 @@ async function triggerAreaCapture() {
             croppedBuffer.fill(0);
             imgBuffer.fill(0);
             console.timeEnd('shortcut-area-capture');
-            logger_1.logger.info('main', 'Global shortcut area capture completed', { filePath, area: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight } });
+            logger_1.logger.info('main', 'Global shortcut area capture completed', { filePath, area: transformedArea });
         }
         else {
             console.log('Area capture cancelled by user');
@@ -318,8 +331,16 @@ process.on('unhandledRejection', (reason, promise) => {
 electron_1.app.whenReady().then(async () => {
     logger_1.logger.info('main', 'App ready, creating window');
     await createWindow();
-    // Register global shortcuts from config
+    // Initialize services
     const config = (0, storage_1.loadStorageConfig)();
+    // Initialize ImageIndexer for background scanning
+    imageIndexer = new ImageIndexer_1.ImageIndexer();
+    thumbnailCache = new ThumbnailCache_1.ThumbnailCache();
+    // Start background indexing of screenshot directory
+    imageIndexer.startIndexing(config.saveDirectory).catch((error) => {
+        logger_1.logger.error('main', 'Failed to start image indexing', error);
+    });
+    // Register global shortcuts from config
     const shortcutsRegistered = registerGlobalShortcuts(config.shortcuts);
     if (!shortcutsRegistered) {
         logger_1.logger.warn('main', 'Failed to register some global shortcuts - they may be in use by another application');
@@ -340,9 +361,26 @@ electron_1.app.on('window-all-closed', () => {
     if (process.platform !== 'darwin')
         electron_1.app.quit();
 });
-electron_1.app.on('will-quit', () => {
-    // Unregister all global shortcuts before quitting
-    unregisterGlobalShortcuts();
+electron_1.app.on('will-quit', async (event) => {
+    // Prevent immediate quit to allow cleanup
+    event.preventDefault();
+    try {
+        // Unregister all global shortcuts before quitting
+        unregisterGlobalShortcuts();
+        // Cleanup services
+        if (imageIndexer) {
+            await imageIndexer.shutdown();
+        }
+        // Thumbnail cache doesn't need special cleanup, but we could add it here
+        console.log('🏁 [MAIN] Cleanup completed, quitting app');
+    }
+    catch (error) {
+        console.error('Error during cleanup:', error);
+    }
+    finally {
+        // Actually quit the app
+        electron_1.app.quit();
+    }
 });
 // Enhanced screenshot capture with performance optimization and error handling
 electron_1.ipcMain.handle('capture-fullscreen', async () => {
@@ -534,11 +572,9 @@ electron_1.ipcMain.on('area-selection', (event, area) => {
             areaSelectionResolver(null);
         }
         else if (area) {
-            // Transform overlay coordinates to screen coordinates
-            const transformedArea = transformOverlayToScreenCoordinates(area);
-            console.log('Original overlay area:', area);
-            console.log('Transformed screen area:', transformedArea);
-            areaSelectionResolver(transformedArea);
+            // Pass through raw overlay coordinates - transformation will happen in capture functions
+            console.log('Passing raw overlay area to capture function:', area);
+            areaSelectionResolver(area);
         }
         areaSelectionResolver = null;
     }
@@ -559,60 +595,191 @@ electron_1.ipcMain.on('area-selection', (event, area) => {
 // Transform overlay coordinates to actual screen coordinates for cropping
 // The overlay coordinates are relative to the workArea, but we need them relative to the full display bounds for screenshot cropping
 function transformOverlayToScreenCoordinates(overlayArea) {
+    console.log('🔄 [COORD_TRANSFORM] Starting coordinate transformation with input:', overlayArea);
+    // ===== COMPREHENSIVE INPUT VALIDATION =====
+    if (!overlayArea || typeof overlayArea !== 'object') {
+        throw new Error('[COORD_TRANSFORM] Invalid overlayArea: must be an object');
+    }
+    const { x, y, width, height, displayId } = overlayArea;
+    // Validate numeric inputs
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+        throw new Error(`[COORD_TRANSFORM] Invalid coordinates: x=${x}, y=${y}, width=${width}, height=${height}`);
+    }
+    // Validate area dimensions
+    if (width <= 0 || height <= 0) {
+        throw new Error(`[COORD_TRANSFORM] Invalid area dimensions: width=${width}, height=${height} (must be positive)`);
+    }
+    // Validate display ID if provided
+    if (displayId !== undefined && (!Number.isInteger(displayId) || displayId < 0)) {
+        throw new Error(`[COORD_TRANSFORM] Invalid displayId: ${displayId} (must be a non-negative integer)`);
+    }
+    // Get all displays with error checking
     const allDisplays = electron_1.screen.getAllDisplays();
+    if (!allDisplays || allDisplays.length === 0) {
+        throw new Error('[COORD_TRANSFORM] No displays available');
+    }
+    console.log('🖥️ [COORD_TRANSFORM] Available displays:', allDisplays.map(d => ({ id: d.id, bounds: d.bounds, scaleFactor: d.scaleFactor })));
     // Find the display for this area selection
     let targetDisplay;
-    if (overlayArea.displayId) {
-        targetDisplay = allDisplays.find(d => d.id === overlayArea.displayId) || allDisplays[0];
-        console.log('Using provided display ID:', overlayArea.displayId);
+    if (displayId) {
+        const foundDisplay = allDisplays.find(d => d.id === displayId);
+        if (!foundDisplay) {
+            console.warn(`⚠️ [COORD_TRANSFORM] Display ID ${displayId} not found, falling back to primary display`);
+            targetDisplay = allDisplays[0];
+        }
+        else {
+            targetDisplay = foundDisplay;
+            console.log('✅ [COORD_TRANSFORM] Using provided display ID:', displayId);
+        }
     }
     else {
         targetDisplay = allDisplays[0];
-        console.log('No display ID provided, using primary display');
+        console.log('ℹ️ [COORD_TRANSFORM] No display ID provided, using primary display');
     }
-    console.log('Target display for coordinate transformation:', {
+    // ===== DISPLAY VALIDATION =====
+    if (!targetDisplay.bounds || !targetDisplay.workArea) {
+        throw new Error(`[COORD_TRANSFORM] Invalid display properties for display ${targetDisplay.id}`);
+    }
+    console.log('🎯 [COORD_TRANSFORM] Target display properties:', {
         display: targetDisplay.id,
         bounds: targetDisplay.bounds,
         workArea: targetDisplay.workArea,
         scaleFactor: targetDisplay.scaleFactor
     });
+    // Validate display bounds
+    if (targetDisplay.bounds.width <= 0 || targetDisplay.bounds.height <= 0) {
+        throw new Error(`[COORD_TRANSFORM] Invalid display bounds: ${JSON.stringify(targetDisplay.bounds)}`);
+    }
+    if (targetDisplay.scaleFactor <= 0 || !Number.isFinite(targetDisplay.scaleFactor)) {
+        throw new Error(`[COORD_TRANSFORM] Invalid scale factor: ${targetDisplay.scaleFactor}`);
+    }
+    // ===== COORDINATE TRANSFORMATION =====
     // Calculate the offset between workArea and bounds (accounts for menu bar, dock, etc.)
     const workAreaOffsetX = targetDisplay.workArea.x - targetDisplay.bounds.x;
     const workAreaOffsetY = targetDisplay.workArea.y - targetDisplay.bounds.y;
-    console.log('Work area offset from bounds:', { offsetX: workAreaOffsetX, offsetY: workAreaOffsetY });
+    console.log('📐 [COORD_TRANSFORM] Work area offset calculation:', {
+        workAreaX: targetDisplay.workArea.x,
+        boundsX: targetDisplay.bounds.x,
+        offsetX: workAreaOffsetX,
+        workAreaY: targetDisplay.workArea.y,
+        boundsY: targetDisplay.bounds.y,
+        offsetY: workAreaOffsetY
+    });
+    // Validate input coordinates are within workArea bounds
+    if (x < 0 || y < 0 || x + width > targetDisplay.workArea.width || y + height > targetDisplay.workArea.height) {
+        console.warn(`⚠️ [COORD_TRANSFORM] Input area extends beyond workArea bounds:`, {
+            input: { x, y, width, height },
+            workArea: targetDisplay.workArea,
+            exceedsRight: x + width > targetDisplay.workArea.width,
+            exceedsBottom: y + height > targetDisplay.workArea.height
+        });
+    }
     // Transform overlay coordinates (relative to workArea) to display bounds coordinates
-    const displayX = overlayArea.x + workAreaOffsetX;
-    const displayY = overlayArea.y + workAreaOffsetY;
+    const displayX = x + workAreaOffsetX;
+    const displayY = y + workAreaOffsetY;
+    console.log('🔄 [COORD_TRANSFORM] Logical coordinate transformation:', {
+        inputOverlay: { x, y },
+        workAreaOffset: { x: workAreaOffsetX, y: workAreaOffsetY },
+        resultDisplay: { x: displayX, y: displayY }
+    });
     // Apply scale factor to get physical pixels for cropping
     const scaleFactor = targetDisplay.scaleFactor;
     const physicalX = Math.round(displayX * scaleFactor);
     const physicalY = Math.round(displayY * scaleFactor);
-    const physicalWidth = Math.round(overlayArea.width * scaleFactor);
-    const physicalHeight = Math.round(overlayArea.height * scaleFactor);
-    // Add coordinate validation
+    const physicalWidth = Math.round(width * scaleFactor);
+    const physicalHeight = Math.round(height * scaleFactor);
+    console.log('🔍 [COORD_TRANSFORM] Scale factor application:', {
+        scaleFactor,
+        logical: { x: displayX, y: displayY, width, height },
+        physical: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight }
+    });
+    // ===== BOUNDS VALIDATION AND CLAMPING =====
     const maxWidth = Math.round(targetDisplay.bounds.width * scaleFactor);
     const maxHeight = Math.round(targetDisplay.bounds.height * scaleFactor);
+    console.log('📏 [COORD_TRANSFORM] Physical display bounds:', { maxWidth, maxHeight });
+    // Validate physical coordinates are reasonable
+    if (physicalX < -maxWidth || physicalY < -maxHeight || physicalX > 2 * maxWidth || physicalY > 2 * maxHeight) {
+        console.error(`❌ [COORD_TRANSFORM] Physical coordinates are unreasonable:`, {
+            physical: { x: physicalX, y: physicalY },
+            displayBounds: { maxWidth, maxHeight }
+        });
+    }
     const validatedX = Math.max(0, Math.min(physicalX, maxWidth - 1));
     const validatedY = Math.max(0, Math.min(physicalY, maxHeight - 1));
     const validatedWidth = Math.max(1, Math.min(physicalWidth, maxWidth - validatedX));
     const validatedHeight = Math.max(1, Math.min(physicalHeight, maxHeight - validatedY));
-    console.log('Coordinate transformation with workArea offset:', {
-        overlay: { x: overlayArea.x, y: overlayArea.y, width: overlayArea.width, height: overlayArea.height },
-        displayLogical: { x: displayX, y: displayY },
-        physicalRaw: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight },
-        physicalValidated: { x: validatedX, y: validatedY, width: validatedWidth, height: validatedHeight },
-        scaleFactor,
-        workAreaOffset: { x: workAreaOffsetX, y: workAreaOffsetY },
-        displayBounds: { width: maxWidth, height: maxHeight },
-        displayId: targetDisplay.id
-    });
-    return {
+    // Check if clamping occurred
+    const wasClampedX = validatedX !== physicalX;
+    const wasClampedY = validatedY !== physicalY;
+    const wasClampedWidth = validatedWidth !== physicalWidth;
+    const wasClampedHeight = validatedHeight !== physicalHeight;
+    if (wasClampedX || wasClampedY || wasClampedWidth || wasClampedHeight) {
+        console.warn(`⚠️ [COORD_TRANSFORM] Coordinates were clamped to display bounds:`, {
+            original: { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight },
+            clamped: { x: validatedX, y: validatedY, width: validatedWidth, height: validatedHeight },
+            clampingApplied: { x: wasClampedX, y: wasClampedY, width: wasClampedWidth, height: wasClampedHeight }
+        });
+    }
+    // ===== FINAL RESULT VALIDATION =====
+    const result = {
         x: validatedX,
         y: validatedY,
         width: validatedWidth,
         height: validatedHeight,
         displayId: targetDisplay.id
     };
+    // Validate final result makes sense
+    if (result.x < 0 || result.y < 0 || result.width <= 0 || result.height <= 0) {
+        throw new Error(`[COORD_TRANSFORM] Invalid final result: ${JSON.stringify(result)}`);
+    }
+    if (result.x + result.width > maxWidth || result.y + result.height > maxHeight) {
+        throw new Error(`[COORD_TRANSFORM] Final result exceeds display bounds: result=${JSON.stringify(result)}, bounds=${maxWidth}x${maxHeight}`);
+    }
+    // Calculate transformation ratio for verification
+    const inputArea = width * height;
+    const outputArea = result.width * result.height;
+    const scaleRatio = Math.sqrt(outputArea / inputArea);
+    const expectedRatio = scaleFactor;
+    const ratioDiscrepancy = Math.abs(scaleRatio - expectedRatio) / expectedRatio;
+    if (ratioDiscrepancy > 0.1) { // More than 10% discrepancy
+        console.warn(`⚠️ [COORD_TRANSFORM] Unexpected scale ratio discrepancy:`, {
+            inputArea,
+            outputArea,
+            calculatedRatio: scaleRatio,
+            expectedRatio,
+            discrepancy: ratioDiscrepancy
+        });
+    }
+    // ===== COMPREHENSIVE TRANSFORMATION SUMMARY =====
+    console.log('✅ [COORD_TRANSFORM] Coordinate transformation completed successfully:', {
+        summary: {
+            input: { x, y, width, height, displayId },
+            output: result,
+            transformationSteps: {
+                '1_workAreaOffset': { x: workAreaOffsetX, y: workAreaOffsetY },
+                '2_displayLogical': { x: displayX, y: displayY },
+                '3_scaleApplication': { factor: scaleFactor },
+                '4_physicalResult': { x: physicalX, y: physicalY, width: physicalWidth, height: physicalHeight },
+                '5_boundsValidation': { maxWidth, maxHeight },
+                '6_finalClamping': { applied: wasClampedX || wasClampedY || wasClampedWidth || wasClampedHeight }
+            }
+        },
+        validation: {
+            inputValid: true,
+            boundsRespected: true,
+            scaleFactorApplied: true,
+            resultWithinBounds: true,
+            areaRatio: scaleRatio,
+            areaDiscrepancy: ratioDiscrepancy
+        },
+        displayInfo: {
+            id: targetDisplay.id,
+            bounds: targetDisplay.bounds,
+            workArea: targetDisplay.workArea,
+            scaleFactor: targetDisplay.scaleFactor
+        }
+    });
+    return result;
 }
 async function selectAreaOnScreen() {
     console.log('Starting area selection process with individual display overlays');
@@ -700,8 +867,17 @@ electron_1.ipcMain.handle('capture-area', async (event, params) => {
         if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
             throw new Error('Invalid area coordinates');
         }
-        console.log('Area capture requested:', area);
-        console.log('Target display ID:', targetDisplayId);
+        console.log('🎯 [IPC_CAPTURE] Area capture requested:', area);
+        console.log('🎯 [IPC_CAPTURE] Target display ID:', targetDisplayId);
+        // ===== UNIFIED COORDINATE TRANSFORMATION =====
+        // Apply the same transformation logic as the shortcut path
+        // The area coordinates from selectAreaOnScreen() are overlay coordinates and need transformation
+        const areaWithDisplayId = { ...area, displayId: targetDisplayId };
+        const transformedArea = transformOverlayToScreenCoordinates(areaWithDisplayId);
+        console.log('🔄 [IPC_CAPTURE] Coordinates transformed for consistency with shortcut path:', {
+            originalOverlay: area,
+            transformedPhysical: transformedArea
+        });
         // If we have a target display ID, capture only that display
         let imgBuffer;
         if (targetDisplayId) {
@@ -734,8 +910,14 @@ electron_1.ipcMain.handle('capture-area', async (event, params) => {
         }
         console.log('Screenshot captured, size:', imgBuffer.length);
         try {
-            // Use our helper to crop the image with Jimp
-            const croppedBuffer = await (0, jimp_native_1.cropImage)(imgBuffer, area.x, area.y, area.width, area.height);
+            // Use our helper to crop the image with Jimp - now using transformed coordinates
+            console.log('🔪 [IPC_CAPTURE] Cropping image with transformed coordinates:', {
+                x: transformedArea.x,
+                y: transformedArea.y,
+                width: transformedArea.width,
+                height: transformedArea.height
+            });
+            const croppedBuffer = await (0, jimp_native_1.cropImage)(imgBuffer, transformedArea.x, transformedArea.y, transformedArea.width, transformedArea.height);
             console.log('Image cropped successfully, size:', croppedBuffer.length);
             // Save the cropped screenshot
             const filePath = await saveScreenshot(croppedBuffer);
@@ -880,6 +1062,278 @@ electron_1.ipcMain.handle('sidecar-delete', async (event, imagePath) => {
     }
     catch (error) {
         logger_1.logger.error('main', 'Failed to delete sidecar file', error);
+        return { success: false, error: error.message };
+    }
+});
+// ImageIndexer IPC handlers
+electron_1.ipcMain.handle('indexer-search', async (event, query, limit) => {
+    try {
+        if (!imageIndexer) {
+            return { success: false, error: 'Image indexer not initialized' };
+        }
+        const results = imageIndexer.search(query, limit);
+        return { success: true, data: results };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to search images', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('indexer-get-stats', async (event) => {
+    try {
+        if (!imageIndexer) {
+            return { success: false, error: 'Image indexer not initialized' };
+        }
+        return {
+            success: true,
+            data: {
+                imageCount: imageIndexer.getImageCount(),
+                lastScanDate: imageIndexer.getLastScanDate(),
+                isScanning: imageIndexer.isCurrentlyScanning(),
+                allTags: imageIndexer.getAllTags()
+            }
+        };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get indexer stats', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('indexer-get-by-tags', async (event, tags) => {
+    try {
+        if (!imageIndexer) {
+            return { success: false, error: 'Image indexer not initialized' };
+        }
+        const results = imageIndexer.getImagesByTags(tags);
+        return { success: true, data: results };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get images by tags', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('indexer-get-by-date-range', async (event, startDate, endDate) => {
+    try {
+        if (!imageIndexer) {
+            return { success: false, error: 'Image indexer not initialized' };
+        }
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const results = imageIndexer.getImagesByDateRange(start, end);
+        return { success: true, data: results };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get images by date range', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('indexer-rescan', async (event) => {
+    try {
+        if (!imageIndexer) {
+            return { success: false, error: 'Image indexer not initialized' };
+        }
+        const config = (0, storage_1.loadStorageConfig)();
+        await imageIndexer.startIndexing(config.saveDirectory);
+        return { success: true };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to rescan images', error);
+        return { success: false, error: error.message };
+    }
+});
+// ThumbnailCache IPC handlers
+electron_1.ipcMain.handle('thumbnail-get', async (event, filePath, options) => {
+    try {
+        if (!thumbnailCache) {
+            return { success: false, error: 'Thumbnail cache not initialized' };
+        }
+        const thumbnailPath = await thumbnailCache.getThumbnail(filePath, options);
+        return { success: true, data: thumbnailPath };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get thumbnail', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('thumbnail-get-base64', async (event, filePath, options) => {
+    try {
+        if (!thumbnailCache) {
+            return { success: false, error: 'Thumbnail cache not initialized' };
+        }
+        const base64Data = await thumbnailCache.getThumbnailBase64(filePath, options);
+        return { success: true, data: base64Data };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get thumbnail base64', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('thumbnail-pregenerate', async (event, filePaths, options) => {
+    try {
+        if (!thumbnailCache) {
+            return { success: false, error: 'Thumbnail cache not initialized' };
+        }
+        await thumbnailCache.pregenerateThumbnails(filePaths, options);
+        return { success: true };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to pregenerate thumbnails', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('thumbnail-cache-stats', async (event) => {
+    try {
+        if (!thumbnailCache) {
+            return { success: false, error: 'Thumbnail cache not initialized' };
+        }
+        const stats = await thumbnailCache.getCacheStats();
+        return { success: true, data: stats };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get cache stats', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('thumbnail-clear-cache', async (event) => {
+    try {
+        if (!thumbnailCache) {
+            return { success: false, error: 'Thumbnail cache not initialized' };
+        }
+        await thumbnailCache.clearCache();
+        return { success: true };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to clear thumbnail cache', error);
+        return { success: false, error: error.message };
+    }
+});
+// FileManager IPC handlers
+electron_1.ipcMain.handle('file-archive-screenshot', async (event, filePath) => {
+    try {
+        const result = await FileManager_1.fileManager.archiveScreenshot(filePath);
+        if (result.success) {
+            // Update sidecar to mark as archived
+            await sidecar_manager_1.sidecarManager.markAsArchived(result.filePath);
+            // Remove from image indexer (or update to mark as archived)
+            if (imageIndexer) {
+                imageIndexer.removeImage(filePath);
+            }
+            // Clean up thumbnail
+            if (thumbnailCache) {
+                await thumbnailCache.removeThumbnail(filePath);
+            }
+        }
+        return result;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to archive screenshot', error);
+        return { success: false, error: error.message, filePath };
+    }
+});
+electron_1.ipcMain.handle('file-archive-screenshots', async (event, filePaths) => {
+    try {
+        const result = await FileManager_1.fileManager.archiveScreenshots(filePaths);
+        // Update sidecars and indexes for successful operations
+        for (const operation of result.success) {
+            await sidecar_manager_1.sidecarManager.markAsArchived(operation.filePath);
+            if (imageIndexer) {
+                imageIndexer.removeImage(operation.filePath);
+            }
+            if (thumbnailCache) {
+                await thumbnailCache.removeThumbnail(operation.filePath);
+            }
+        }
+        return result;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to archive screenshots', error);
+        return { success: [], failed: filePaths.map(fp => ({ filePath: fp, success: false, error: error.message })), totalCount: filePaths.length };
+    }
+});
+electron_1.ipcMain.handle('file-delete-screenshot', async (event, filePath, permanent) => {
+    try {
+        const result = await FileManager_1.fileManager.deleteScreenshot(filePath, permanent);
+        if (result.success) {
+            // Remove from image indexer
+            if (imageIndexer) {
+                imageIndexer.removeImage(filePath);
+            }
+            // Clean up thumbnail
+            if (thumbnailCache) {
+                await thumbnailCache.removeThumbnail(filePath);
+            }
+        }
+        return result;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to delete screenshot', error);
+        return { success: false, error: error.message, filePath };
+    }
+});
+electron_1.ipcMain.handle('file-delete-screenshots', async (event, filePaths, permanent) => {
+    try {
+        const result = await FileManager_1.fileManager.deleteScreenshots(filePaths, permanent);
+        // Clean up indexes and thumbnails for successful operations
+        for (const operation of result.success) {
+            if (imageIndexer) {
+                imageIndexer.removeImage(operation.filePath);
+            }
+            if (thumbnailCache) {
+                await thumbnailCache.removeThumbnail(operation.filePath);
+            }
+        }
+        return result;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to delete screenshots', error);
+        return { success: [], failed: filePaths.map(fp => ({ filePath: fp, success: false, error: error.message })), totalCount: filePaths.length };
+    }
+});
+electron_1.ipcMain.handle('file-restore-screenshot', async (event, archivedPath) => {
+    try {
+        const result = await FileManager_1.fileManager.restoreScreenshot(archivedPath);
+        if (result.success) {
+            // Update sidecar to mark as unarchived
+            await sidecar_manager_1.sidecarManager.markAsUnarchived(result.filePath);
+            // Add back to image indexer
+            if (imageIndexer) {
+                await imageIndexer.addImage(result.filePath);
+            }
+        }
+        return result;
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to restore screenshot', error);
+        return { success: false, error: error.message, filePath: archivedPath };
+    }
+});
+electron_1.ipcMain.handle('file-get-recently-deleted', async (event) => {
+    try {
+        const deletedItems = FileManager_1.fileManager.getRecentlyDeletedItems();
+        return { success: true, data: deletedItems };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get recently deleted items', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('file-cleanup-orphaned-sidecars', async (event, directory) => {
+    try {
+        const removedCount = await FileManager_1.fileManager.cleanupOrphanedSidecars(directory);
+        return { success: true, data: { removedCount } };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to cleanup orphaned sidecars', error);
+        return { success: false, error: error.message };
+    }
+});
+electron_1.ipcMain.handle('file-get-statistics', async (event) => {
+    try {
+        const stats = FileManager_1.fileManager.getStatistics();
+        return { success: true, data: stats };
+    }
+    catch (error) {
+        logger_1.logger.error('main', 'Failed to get file statistics', error);
         return { success: false, error: error.message };
     }
 });

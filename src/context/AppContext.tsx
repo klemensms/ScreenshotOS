@@ -80,11 +80,16 @@ export interface Annotation {
 
 export interface DrawingState {
   isDrawing: boolean;
-  selectedTool: 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur';
+  selectedTool: 'select' | 'arrow' | 'rectangle' | 'text' | 'numbering' | 'blur';
   selectedColor: string;
   blurIntensity: number;
   numberingCounter: number;
   currentAnnotation: Annotation | null;
+  selectedAnnotations: string[];
+  isDragging: boolean;
+  dragStartPoint: { x: number; y: number } | null;
+  isResizing: boolean;
+  resizeHandle: string | null;
 }
 
 interface AppContextType {
@@ -121,11 +126,89 @@ interface AppProviderProps {
 }
 
 /**
+ * Parse timestamp from screenshot filename patterns
+ * Supports formats like: screenshot_2025-06-30-16-04-15.png
+ */
+function parseTimestampFromFilename(filePath: string): Date | null {
+  try {
+    const filename = filePath.split('/').pop() || '';
+    
+    // Match pattern: screenshot_YYYY-MM-DD-HH-MM-SS.png
+    const timestampMatch = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+    
+    if (timestampMatch) {
+      const [, year, month, day, hour, minute, second] = timestampMatch;
+      // Note: month is 0-indexed in JavaScript Date constructor
+      const timestamp = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second)
+      );
+      
+      // Validate the parsed date
+      if (!isNaN(timestamp.getTime())) {
+        console.log(`📅 [TIMESTAMP] Parsed from filename ${filename}:`, timestamp.toLocaleString());
+        return timestamp;
+      }
+    }
+    
+    // Try alternative patterns if needed (e.g., different separators)
+    const altMatch = filename.match(/(\d{4})-(\d{2})-(\d{2})[_\s](\d{2})[.-](\d{2})[.-](\d{2})/);
+    if (altMatch) {
+      const [, year, month, day, hour, minute, second] = altMatch;
+      const timestamp = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second)
+      );
+      
+      if (!isNaN(timestamp.getTime())) {
+        console.log(`📅 [TIMESTAMP] Parsed from alt pattern ${filename}:`, timestamp.toLocaleString());
+        return timestamp;
+      }
+    }
+    
+    console.log(`⚠️ [TIMESTAMP] Could not parse timestamp from filename: ${filename}`);
+    return null;
+  } catch (error) {
+    console.error('❌ [TIMESTAMP] Error parsing timestamp from filename:', error);
+    return null;
+  }
+}
+
+/**
  * Create a basic screenshot object for images without sidecar files
  */
-function createBasicScreenshot(imagePath: string, base64Image: string, index: number): Screenshot {
+function createBasicScreenshot(imagePath: string, base64Image: string, index: number, fileStats?: any): Screenshot {
   const filename = imagePath.split('/').pop() || 'Unknown';
-  const timestamp = new Date(); // Use current time as fallback
+  
+  // Smart timestamp detection - priority order:
+  // 1. Parse from filename pattern
+  // 2. Use file creation time (birthtime)
+  // 3. Use file modification time (mtime)
+  // 4. Current time as last resort
+  let timestamp = parseTimestampFromFilename(imagePath);
+  
+  if (!timestamp && fileStats) {
+    if (fileStats.birthtime) {
+      timestamp = new Date(fileStats.birthtime);
+      console.log(`📅 [TIMESTAMP] Using file birthtime for ${filename}:`, timestamp.toLocaleString());
+    } else if (fileStats.mtime) {
+      timestamp = new Date(fileStats.mtime);
+      console.log(`📅 [TIMESTAMP] Using file mtime for ${filename}:`, timestamp.toLocaleString());
+    }
+  }
+  
+  if (!timestamp) {
+    timestamp = new Date();
+    console.log(`⚠️ [TIMESTAMP] Using current time as fallback for ${filename}:`, timestamp.toLocaleString());
+  }
   
   return {
     id: `basic-${Date.now()}-${Math.random()}-${index}`,
@@ -159,7 +242,12 @@ export function AppProvider({ children }: AppProviderProps) {
     selectedColor: '#dc2626',
     blurIntensity: 10,
     numberingCounter: 1,
-    currentAnnotation: null
+    currentAnnotation: null,
+    selectedAnnotations: [],
+    isDragging: false,
+    dragStartPoint: null,
+    isResizing: false,
+    resizeHandle: null
   });
   
   // Refs to track timeouts for proper cleanup
@@ -307,12 +395,12 @@ export function AppProvider({ children }: AppProviderProps) {
         console.log(`🔄 [LOADING] Found ${result.imageFiles.length} total images, checking file sizes...`);
         
         // Check file sizes before attempting to load
-        const validFiles: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number}> = [];
+        const validFiles: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number, fileStats: any}> = [];
         const rejectedFiles: Array<{imagePath: string, fileSize: number, reason: string}> = [];
         
         for (const imageFile of result.imageFiles) {
           try {
-            // Get file size before attempting to load
+            // Get file size and metadata before attempting to load
             const fileStat = await ipcWithTimeout('file-stats', imageFile.imagePath, 3000);
             if (fileStat && fileStat.success) {
               const fileSizeMB = fileStat.size / (1024 * 1024);
@@ -320,7 +408,8 @@ export function AppProvider({ children }: AppProviderProps) {
               if (fileSizeMB <= MAX_FILE_SIZE_MB) {
                 validFiles.push({
                   ...imageFile,
-                  fileSize: fileSizeMB
+                  fileSize: fileSizeMB,
+                  fileStats: fileStat // Store full file stats for timestamp extraction
                 });
                 console.log(`✅ [FILTER] File accepted: ${imageFile.imagePath.split('/').pop()} (${fileSizeMB.toFixed(1)}MB)`);
               } else {
@@ -429,10 +518,10 @@ export function AppProvider({ children }: AppProviderProps) {
                   hasSidecar: true
                 };
               } else {
-                screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index);
+                screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
               }
             } else {
-              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index);
+              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
             }
             
             console.log(`✅ [LOADING] Successfully created screenshot object ${index + 1}:`, screenshot.name);
@@ -548,7 +637,7 @@ export function AppProvider({ children }: AppProviderProps) {
     try {
       console.log(`🔄 [LOAD_MORE] Loading more screenshots starting from offset ${loadedFileOffset}`);
       
-      const BATCH_SIZE = 8; // Reduced batch size for better stability
+      const BATCH_SIZE = 16; // Increased batch size for better loading
       const MAX_FILE_SIZE_MB = 5; // Match the main loading limits
       
       // Get the next batch of files
@@ -561,7 +650,7 @@ export function AppProvider({ children }: AppProviderProps) {
       }
       
       // Filter by file size similar to initial load
-      const validFiles: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number}> = [];
+      const validFiles: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number, fileStats: any}> = [];
       
       for (const imageFile of nextBatch) {
         try {
@@ -571,7 +660,8 @@ export function AppProvider({ children }: AppProviderProps) {
             if (fileSizeMB <= MAX_FILE_SIZE_MB) {
               validFiles.push({
                 ...imageFile,
-                fileSize: fileSizeMB
+                fileSize: fileSizeMB,
+                fileStats: fileStat
               });
             }
           }
@@ -631,10 +721,10 @@ export function AppProvider({ children }: AppProviderProps) {
                 hasSidecar: true
               };
             } else {
-              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index);
+              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
             }
           } else {
-            screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index);
+            screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
           }
           
           newScreenshots.push(screenshot);

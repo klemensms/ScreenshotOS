@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useApp } from '../context/AppContext';
 import { debugLogger } from '../utils/debug-logger';
+import { AnnotationPropertyEditor } from './AnnotationPropertyEditor';
 
 export function Canvas() {
   const { screenshots, currentScreenshot, setCurrentScreenshot, drawingState, updateDrawingState, addAnnotation } = useApp();
@@ -17,6 +18,112 @@ export function Canvas() {
   const [showTextInput, setShowTextInput] = useState(false);
   const [textInputPosition, setTextInputPosition] = useState({ x: 0, y: 0 });
   const [pendingTextCoords, setPendingTextCoords] = useState<{ x: number; y: number } | null>(null);
+  const [cursorStyle, setCursorStyle] = useState('default');
+
+  // Keyboard event handler for delete functionality
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle delete when in select mode and annotations are selected
+      if (drawingState.selectedTool === 'select' && drawingState.selectedAnnotations.length > 0) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          handleDeleteSelectedAnnotations();
+        }
+      }
+    };
+
+    // Add event listener to window to capture keyboard events
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [drawingState.selectedTool, drawingState.selectedAnnotations]);
+
+  // Delete selected annotations
+  const handleDeleteSelectedAnnotations = async () => {
+    if (!currentScreenshot?.annotations || drawingState.selectedAnnotations.length === 0) {
+      return;
+    }
+
+    try {
+      // Filter out selected annotations
+      const updatedAnnotations = currentScreenshot.annotations.filter(
+        annotation => !drawingState.selectedAnnotations.includes(annotation.id)
+      );
+
+      // Update the screenshot data
+      const updatedScreenshot = {
+        ...currentScreenshot,
+        annotations: updatedAnnotations
+      };
+
+      setCurrentScreenshot(updatedScreenshot);
+
+      // Save to sidecar file
+      try {
+        await window.electron.invoke('sidecar-update', currentScreenshot.filePath, {
+          annotations: updatedAnnotations
+        });
+        console.log('✅ [ANNOTATIONS] Successfully deleted annotations from sidecar file');
+      } catch (error) {
+        console.error('❌ [ANNOTATIONS] Failed to delete annotations from sidecar file:', error);
+      }
+
+      // Clear selection
+      updateDrawingState({
+        selectedAnnotations: [],
+        isDragging: false,
+        dragStartPoint: null
+      });
+
+      console.log(`🗑️ [ANNOTATIONS] Deleted ${drawingState.selectedAnnotations.length} annotation(s)`);
+    } catch (error) {
+      console.error('Error deleting annotations:', error);
+    }
+  };
+
+  // Update annotation properties
+  const handleUpdateAnnotation = async (annotationId: string, updates: any) => {
+    if (!currentScreenshot?.annotations) {
+      return;
+    }
+
+    try {
+      // Update the annotation with new properties
+      const updatedAnnotations = currentScreenshot.annotations.map(annotation => {
+        if (annotation.id === annotationId) {
+          return {
+            ...annotation,
+            ...updates
+          };
+        }
+        return annotation;
+      });
+
+      // Update the screenshot data
+      const updatedScreenshot = {
+        ...currentScreenshot,
+        annotations: updatedAnnotations
+      };
+
+      setCurrentScreenshot(updatedScreenshot);
+
+      // Save to sidecar file
+      try {
+        await window.electron.invoke('sidecar-update', currentScreenshot.filePath, {
+          annotations: updatedAnnotations
+        });
+        console.log('✅ [ANNOTATIONS] Successfully updated annotation properties in sidecar file');
+      } catch (error) {
+        console.error('❌ [ANNOTATIONS] Failed to save annotation properties to sidecar file:', error);
+      }
+
+      console.log(`🎨 [ANNOTATIONS] Updated annotation ${annotationId} with properties:`, updates);
+    } catch (error) {
+      console.error('Error updating annotation:', error);
+    }
+  };
 
   // Setup canvas when component mounts or current screenshot changes
   useEffect(() => {
@@ -200,7 +307,7 @@ export function Canvas() {
     }, 16); // ~60fps debouncing
     
     return () => clearTimeout(timeoutId);
-  }, [isCanvasReady, currentScreenshot?.id, currentScreenshot?.annotations, canvasScale]); // Use annotations array reference instead of length
+  }, [isCanvasReady, currentScreenshot?.id, currentScreenshot?.annotations, canvasScale, drawingState.selectedAnnotations]); // Include selectedAnnotations for selection highlighting
 
   // Simplified coordinate transformation helper functions
   const canvasToImageCoordinates = (canvasX: number, canvasY: number) => {
@@ -215,6 +322,84 @@ export function Canvas() {
     const canvasX = imageX * canvasScale;
     const canvasY = imageY * canvasScale;
     return { x: canvasX, y: canvasY };
+  };
+
+  // Hit-testing function to check if a point is inside an annotation
+  const hitTestAnnotation = (annotation: any, canvasX: number, canvasY: number): boolean => {
+    const imageCoords = canvasToImageCoordinates(canvasX, canvasY);
+    const x = imageCoords.x;
+    const y = imageCoords.y;
+
+    switch (annotation.type) {
+      case 'rectangle':
+      case 'blur':
+        const left = Math.min(annotation.position.x, annotation.position.x + (annotation.position.width || 0));
+        const right = Math.max(annotation.position.x, annotation.position.x + (annotation.position.width || 0));
+        const top = Math.min(annotation.position.y, annotation.position.y + (annotation.position.height || 0));
+        const bottom = Math.max(annotation.position.y, annotation.position.y + (annotation.position.height || 0));
+        return x >= left && x <= right && y >= top && y <= bottom;
+      
+      case 'arrow':
+        // For arrows, check if point is near the line (within 10px tolerance)
+        const tolerance = 10 / canvasScale;
+        const startX = annotation.position.x;
+        const startY = annotation.position.y;
+        const endX = annotation.position.x + (annotation.position.width || 0);
+        const endY = annotation.position.y + (annotation.position.height || 0);
+        
+        // Distance from point to line segment
+        const A = x - startX;
+        const B = y - startY;
+        const C = endX - startX;
+        const D = endY - startY;
+        
+        const dot = A * C + B * D;
+        const lenSq = C * C + D * D;
+        let param = -1;
+        if (lenSq !== 0) param = dot / lenSq;
+        
+        let xx, yy;
+        if (param < 0) {
+          xx = startX;
+          yy = startY;
+        } else if (param > 1) {
+          xx = endX;
+          yy = endY;
+        } else {
+          xx = startX + param * C;
+          yy = startY + param * D;
+        }
+        
+        const dx = x - xx;
+        const dy = y - yy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= tolerance;
+      
+      case 'text':
+      case 'numbering':
+        // For text and numbering, check if point is within a small radius
+        const radius = 20 / canvasScale;
+        const textDx = x - annotation.position.x;
+        const textDy = y - annotation.position.y;
+        return Math.sqrt(textDx * textDx + textDy * textDy) <= radius;
+      
+      default:
+        return false;
+    }
+  };
+
+  // Find the topmost annotation at a given point
+  const findAnnotationAtPoint = (canvasX: number, canvasY: number): any | null => {
+    if (!currentScreenshot?.annotations) return null;
+    
+    // Check annotations in reverse order (topmost first)
+    for (let i = currentScreenshot.annotations.length - 1; i >= 0; i--) {
+      const annotation = currentScreenshot.annotations[i];
+      if (hitTestAnnotation(annotation, canvasX, canvasY)) {
+        return annotation;
+      }
+    }
+    return null;
   };
   
   const mouseToCanvasCoordinates = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -232,9 +417,16 @@ export function Canvas() {
 
   // Render existing annotations on canvas
   const renderAnnotations = (ctx: CanvasRenderingContext2D) => {
-    if (!currentScreenshot?.annotations) return;
+    if (!currentScreenshot?.annotations) {
+      console.log('🎨 [RENDER] No annotations to render for current screenshot');
+      return;
+    }
+    
+    console.log(`🎨 [RENDER] Rendering ${currentScreenshot.annotations.length} annotations for screenshot: ${currentScreenshot.name}`);
     
     currentScreenshot.annotations.forEach(annotation => {
+      const isSelected = drawingState.selectedAnnotations.includes(annotation.id);
+      
       ctx.strokeStyle = annotation.color;
       ctx.fillStyle = annotation.color;
       ctx.lineWidth = 2;
@@ -245,6 +437,7 @@ export function Canvas() {
       const width = (annotation.position.width || 0) * canvasScale;
       const height = (annotation.position.height || 0) * canvasScale;
       
+      // Render the annotation
       switch (annotation.type) {
         case 'arrow':
           drawArrow(ctx, x, y, x + width, y + height);
@@ -267,7 +460,87 @@ export function Canvas() {
           }
           break;
       }
+      
+      // Render selection indicators
+      if (isSelected) {
+        renderSelectionIndicators(ctx, annotation, x, y, width, height);
+      }
     });
+  };
+
+  // Render selection indicators (border and resize handles)
+  const renderSelectionIndicators = (ctx: CanvasRenderingContext2D, annotation: any, x: number, y: number, width: number, height: number) => {
+    ctx.save();
+    
+    // Selection border
+    ctx.strokeStyle = '#2563eb'; // Blue color
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 2;
+    
+    let bounds = { left: x, top: y, right: x + width, bottom: y + height };
+    
+    // Calculate bounds based on annotation type
+    switch (annotation.type) {
+      case 'rectangle':
+      case 'blur':
+        bounds = {
+          left: Math.min(x, x + width),
+          right: Math.max(x, x + width),
+          top: Math.min(y, y + height),
+          bottom: Math.max(y, y + height)
+        };
+        break;
+      case 'arrow':
+        const padding = 10;
+        bounds = {
+          left: Math.min(x, x + width) - padding,
+          right: Math.max(x, x + width) + padding,
+          top: Math.min(y, y + height) - padding,
+          bottom: Math.max(y, y + height) + padding
+        };
+        break;
+      case 'text':
+      case 'numbering':
+        const radius = 25;
+        bounds = {
+          left: x - radius,
+          right: x + radius,
+          top: y - radius,
+          bottom: y + radius
+        };
+        break;
+    }
+    
+    // Draw selection border
+    ctx.beginPath();
+    ctx.rect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+    ctx.stroke();
+    
+    // Draw resize handles for rectangle and blur annotations
+    if (annotation.type === 'rectangle' || annotation.type === 'blur') {
+      const handleSize = 8;
+      ctx.fillStyle = '#2563eb';
+      ctx.setLineDash([]);
+      
+      // Corner handles
+      const handles = [
+        { x: bounds.left, y: bounds.top }, // Top-left
+        { x: bounds.right, y: bounds.top }, // Top-right
+        { x: bounds.left, y: bounds.bottom }, // Bottom-left
+        { x: bounds.right, y: bounds.bottom }, // Bottom-right
+        { x: (bounds.left + bounds.right) / 2, y: bounds.top }, // Top-center
+        { x: (bounds.left + bounds.right) / 2, y: bounds.bottom }, // Bottom-center
+        { x: bounds.left, y: (bounds.top + bounds.bottom) / 2 }, // Left-center
+        { x: bounds.right, y: (bounds.top + bounds.bottom) / 2 }, // Right-center
+      ];
+      
+      handles.forEach(handle => {
+        ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+        ctx.strokeRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+      });
+    }
+    
+    ctx.restore();
   };
 
   // Drawing functions
@@ -278,6 +551,12 @@ export function Canvas() {
     
     try {
       const canvasCoords = mouseToCanvasCoordinates(e);
+      
+      // Handle selection tool
+      if (drawingState.selectedTool === 'select') {
+        handleSelectionClick(canvasCoords, e);
+        return;
+      }
       
       // Handle tool-specific start behavior
       if (drawingState.selectedTool === 'numbering') {
@@ -296,6 +575,180 @@ export function Canvas() {
       updateDrawingState({ isDrawing: true });
     } catch (error) {
       console.error('Error starting drawing:', error);
+    }
+  };
+
+  // Check if click is on a resize handle
+  const getResizeHandle = (annotation: any, canvasX: number, canvasY: number): string | null => {
+    if (annotation.type !== 'rectangle' && annotation.type !== 'blur') {
+      return null;
+    }
+    
+    const imageCoords = canvasToImageCoordinates(canvasX, canvasY);
+    const canvasPos = imageToCanvasCoordinates(annotation.position.x, annotation.position.y);
+    const width = (annotation.position.width || 0) * canvasScale;
+    const height = (annotation.position.height || 0) * canvasScale;
+    
+    const bounds = {
+      left: Math.min(canvasPos.x, canvasPos.x + width),
+      right: Math.max(canvasPos.x, canvasPos.x + width),
+      top: Math.min(canvasPos.y, canvasPos.y + height),
+      bottom: Math.max(canvasPos.y, canvasPos.y + height)
+    };
+    
+    const handleSize = 8;
+    const tolerance = handleSize / 2 + 2; // A bit of extra tolerance for easier clicking
+    
+    // Check each resize handle
+    const handles = [
+      { x: bounds.left, y: bounds.top, type: 'nw' }, // Top-left
+      { x: bounds.right, y: bounds.top, type: 'ne' }, // Top-right
+      { x: bounds.left, y: bounds.bottom, type: 'sw' }, // Bottom-left
+      { x: bounds.right, y: bounds.bottom, type: 'se' }, // Bottom-right
+      { x: (bounds.left + bounds.right) / 2, y: bounds.top, type: 'n' }, // Top-center
+      { x: (bounds.left + bounds.right) / 2, y: bounds.bottom, type: 's' }, // Bottom-center
+      { x: bounds.left, y: (bounds.top + bounds.bottom) / 2, type: 'w' }, // Left-center
+      { x: bounds.right, y: (bounds.top + bounds.bottom) / 2, type: 'e' }, // Right-center
+    ];
+    
+    for (const handle of handles) {
+      const distance = Math.sqrt(Math.pow(canvasX - handle.x, 2) + Math.pow(canvasY - handle.y, 2));
+      if (distance <= tolerance) {
+        return handle.type;
+      }
+    }
+    
+    return null;
+  };
+
+  // Get cursor style for resize handles
+  const getResizeCursor = (handleType: string): string => {
+    switch (handleType) {
+      case 'nw':
+      case 'se':
+        return 'nw-resize';
+      case 'ne':
+      case 'sw':
+        return 'ne-resize';
+      case 'n':
+      case 's':
+        return 'ns-resize';
+      case 'w':
+      case 'e':
+        return 'ew-resize';
+      default:
+        return 'default';
+    }
+  };
+
+  // Handle mouse move for cursor feedback
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || !isCanvasReady) {
+      return;
+    }
+
+    // Handle drawing first
+    draw(e);
+
+    // Update cursor based on context
+    if (drawingState.selectedTool === 'select' && drawingState.selectedAnnotations.length > 0) {
+      const canvasCoords = mouseToCanvasCoordinates(e);
+      
+      // Check if hovering over a resize handle
+      for (const annotationId of drawingState.selectedAnnotations) {
+        const annotation = currentScreenshot?.annotations?.find(a => a.id === annotationId);
+        if (annotation) {
+          const resizeHandle = getResizeHandle(annotation, canvasCoords.x, canvasCoords.y);
+          if (resizeHandle) {
+            setCursorStyle(getResizeCursor(resizeHandle));
+            return;
+          }
+        }
+      }
+      
+      // Check if hovering over selected annotation (for dragging)
+      const hoveredAnnotation = findAnnotationAtPoint(canvasCoords.x, canvasCoords.y);
+      if (hoveredAnnotation && drawingState.selectedAnnotations.includes(hoveredAnnotation.id)) {
+        setCursorStyle('move');
+        return;
+      }
+    }
+
+    // Default cursor
+    if (drawingState.selectedTool === 'select') {
+      setCursorStyle('default');
+    } else if (drawingState.selectedTool === 'text') {
+      setCursorStyle('text');
+    } else if (drawingState.selectedTool === 'numbering') {
+      setCursorStyle('pointer');
+    } else {
+      setCursorStyle('crosshair');
+    }
+  };
+
+  // Selection click handler
+  const handleSelectionClick = (canvasCoords: { x: number; y: number }, e: React.MouseEvent<HTMLCanvasElement>) => {
+    try {
+      const clickedAnnotation = findAnnotationAtPoint(canvasCoords.x, canvasCoords.y);
+      const isMultiSelect = e.ctrlKey || e.metaKey; // Ctrl on Windows/Linux, Cmd on Mac
+      
+      if (clickedAnnotation) {
+        // Check if we're clicking on a resize handle of a selected annotation
+        if (drawingState.selectedAnnotations.includes(clickedAnnotation.id)) {
+          const resizeHandle = getResizeHandle(clickedAnnotation, canvasCoords.x, canvasCoords.y);
+          if (resizeHandle) {
+            // Start resizing
+            updateDrawingState({
+              isResizing: true,
+              resizeHandle: resizeHandle,
+              dragStartPoint: canvasCoords
+            });
+            setIsDrawing(false);
+            setStartPoint(canvasCoords);
+            return;
+          }
+        }
+        
+        let newSelection: string[];
+        
+        if (isMultiSelect) {
+          // Multi-select: toggle the clicked annotation
+          if (drawingState.selectedAnnotations.includes(clickedAnnotation.id)) {
+            newSelection = drawingState.selectedAnnotations.filter(id => id !== clickedAnnotation.id);
+          } else {
+            newSelection = [...drawingState.selectedAnnotations, clickedAnnotation.id];
+          }
+        } else {
+          // Single select: select only the clicked annotation
+          newSelection = [clickedAnnotation.id];
+        }
+        
+        updateDrawingState({
+          selectedAnnotations: newSelection,
+          isDragging: false, // Don't start dragging on click, only on mouse move
+          dragStartPoint: canvasCoords,
+          isResizing: false,
+          resizeHandle: null
+        });
+        
+        console.log(`🖱️ [SELECTION] Selected annotation(s):`, newSelection);
+        
+        setIsDrawing(true); // Set to true so we can detect drag start
+        setStartPoint(canvasCoords);
+      } else {
+        // Clicked on empty area - clear selection unless multi-selecting
+        if (!isMultiSelect) {
+          updateDrawingState({
+            selectedAnnotations: [],
+            isDragging: false,
+            dragStartPoint: null,
+            isResizing: false,
+            resizeHandle: null
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error handling selection click:', error);
     }
   };
 
@@ -393,7 +846,55 @@ export function Canvas() {
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !canvasRef.current || !isCanvasReady) {
+    if (!canvasRef.current || !isCanvasReady) {
+      return;
+    }
+
+    // Handle dragging or resizing selected annotations in select mode
+    if (drawingState.selectedTool === 'select' && (drawingState.isDragging || drawingState.isResizing) && drawingState.dragStartPoint) {
+      handleAnnotationDrag(e);
+      return;
+    }
+    
+    // Check if we should start dragging selected annotations
+    if (drawingState.selectedTool === 'select' && 
+        drawingState.selectedAnnotations.length > 0 && 
+        drawingState.dragStartPoint && 
+        !drawingState.isDragging && 
+        !drawingState.isResizing && 
+        isDrawing) {
+      
+      const currentCoords = mouseToCanvasCoordinates(e);
+      const deltaX = Math.abs(currentCoords.x - drawingState.dragStartPoint.x);
+      const deltaY = Math.abs(currentCoords.y - drawingState.dragStartPoint.y);
+      
+      // Start dragging if mouse moved more than 3 pixels
+      if (deltaX > 3 || deltaY > 3) {
+        const hoveredAnnotation = findAnnotationAtPoint(drawingState.dragStartPoint.x, drawingState.dragStartPoint.y);
+        if (hoveredAnnotation && drawingState.selectedAnnotations.includes(hoveredAnnotation.id)) {
+          // Check if we're starting a resize operation
+          const resizeHandle = getResizeHandle(hoveredAnnotation, drawingState.dragStartPoint.x, drawingState.dragStartPoint.y);
+          if (resizeHandle) {
+            updateDrawingState({
+              isResizing: true,
+              resizeHandle: resizeHandle,
+              isDragging: false
+            });
+            console.log(`🔄 [RESIZE] Starting resize operation with handle: ${resizeHandle}`);
+          } else {
+            updateDrawingState({
+              isDragging: true,
+              isResizing: false,
+              resizeHandle: null
+            });
+            console.log(`🖱️ [DRAG] Starting drag operation for ${drawingState.selectedAnnotations.length} annotation(s)`);
+          }
+          return;
+        }
+      }
+    }
+    
+    if (!isDrawing) {
       return;
     }
     
@@ -441,7 +942,228 @@ export function Canvas() {
     }
   };
 
+  // Handle dragging selected annotations
+  const handleAnnotationDrag = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!drawingState.dragStartPoint || !currentScreenshot?.annotations) return;
+
+    try {
+      const currentCoords = mouseToCanvasCoordinates(e);
+      const deltaX = currentCoords.x - drawingState.dragStartPoint.x;
+      const deltaY = currentCoords.y - drawingState.dragStartPoint.y;
+      
+      // Convert delta to image coordinates
+      const imageDeltaX = deltaX / canvasScale;
+      const imageDeltaY = deltaY / canvasScale;
+      
+      // Create updated annotations
+      const updatedAnnotations = currentScreenshot.annotations.map(annotation => {
+        if (drawingState.selectedAnnotations.includes(annotation.id)) {
+          if (drawingState.isResizing && drawingState.resizeHandle) {
+            // Handle resizing
+            return handleAnnotationResize(annotation, imageDeltaX, imageDeltaY, drawingState.resizeHandle);
+          } else if (drawingState.isDragging) {
+            // Handle dragging (moving)
+            return {
+              ...annotation,
+              position: {
+                ...annotation.position,
+                x: annotation.position.x + imageDeltaX,
+                y: annotation.position.y + imageDeltaY
+              }
+            };
+          }
+        }
+        return annotation;
+      });
+      
+      // Update the screenshot with new annotation positions (temporary preview)
+      const updatedScreenshot = {
+        ...currentScreenshot,
+        annotations: updatedAnnotations
+      };
+      
+      // Clear and re-render with updated positions
+      const canvas = canvasRef.current;
+      const ctx = canvas?.getContext('2d');
+      if (canvas && ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Temporarily update currentScreenshot for rendering
+        const originalAnnotations = currentScreenshot.annotations;
+        (currentScreenshot as any).annotations = updatedAnnotations;
+        renderAnnotations(ctx);
+        // Restore original annotations
+        (currentScreenshot as any).annotations = originalAnnotations;
+      }
+      
+      // Update drag start point for next move
+      updateDrawingState({
+        dragStartPoint: currentCoords
+      });
+      
+    } catch (error) {
+      console.error('Error during annotation drag:', error);
+    }
+  };
+
+  // Handle resizing of annotations
+  const handleAnnotationResize = (annotation: any, deltaX: number, deltaY: number, resizeHandle: string) => {
+    if (annotation.type !== 'rectangle' && annotation.type !== 'blur') {
+      return annotation;
+    }
+
+    const position = { ...annotation.position };
+    
+    switch (resizeHandle) {
+      case 'nw': // Top-left
+        position.x += deltaX;
+        position.y += deltaY;
+        position.width -= deltaX;
+        position.height -= deltaY;
+        break;
+      case 'ne': // Top-right
+        position.y += deltaY;
+        position.width += deltaX;
+        position.height -= deltaY;
+        break;
+      case 'sw': // Bottom-left
+        position.x += deltaX;
+        position.width -= deltaX;
+        position.height += deltaY;
+        break;
+      case 'se': // Bottom-right
+        position.width += deltaX;
+        position.height += deltaY;
+        break;
+      case 'n': // Top
+        position.y += deltaY;
+        position.height -= deltaY;
+        break;
+      case 's': // Bottom
+        position.height += deltaY;
+        break;
+      case 'w': // Left
+        position.x += deltaX;
+        position.width -= deltaX;
+        break;
+      case 'e': // Right
+        position.width += deltaX;
+        break;
+    }
+    
+    // Ensure minimum size
+    const minSize = 10;
+    if (Math.abs(position.width) < minSize) {
+      if (position.width < 0) {
+        position.width = -minSize;
+      } else {
+        position.width = minSize;
+      }
+    }
+    if (Math.abs(position.height) < minSize) {
+      if (position.height < 0) {
+        position.height = -minSize;
+      } else {
+        position.height = minSize;
+      }
+    }
+    
+    return {
+      ...annotation,
+      position
+    };
+  };
+
+  // Handle ending drag/resize operation and save new positions
+  const handleAnnotationDragEnd = async (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!drawingState.dragStartPoint || !currentScreenshot?.annotations) return;
+
+    try {
+      const currentCoords = mouseToCanvasCoordinates(e);
+      const deltaX = currentCoords.x - drawingState.dragStartPoint.x;
+      const deltaY = currentCoords.y - drawingState.dragStartPoint.y;
+      
+      // Only update if there was actual movement
+      if (Math.abs(deltaX) < 2 && Math.abs(deltaY) < 2) {
+        updateDrawingState({
+          isDragging: false,
+          dragStartPoint: null,
+          isResizing: false,
+          resizeHandle: null
+        });
+        return;
+      }
+      
+      // Convert delta to image coordinates
+      const imageDeltaX = deltaX / canvasScale;
+      const imageDeltaY = deltaY / canvasScale;
+      
+      // Create updated annotations with final positions
+      const updatedAnnotations = currentScreenshot.annotations.map(annotation => {
+        if (drawingState.selectedAnnotations.includes(annotation.id)) {
+          if (drawingState.isResizing && drawingState.resizeHandle) {
+            // Handle resizing
+            return handleAnnotationResize(annotation, imageDeltaX, imageDeltaY, drawingState.resizeHandle);
+          } else if (drawingState.isDragging) {
+            // Handle dragging (moving)
+            return {
+              ...annotation,
+              position: {
+                ...annotation.position,
+                x: annotation.position.x + imageDeltaX,
+                y: annotation.position.y + imageDeltaY
+              }
+            };
+          }
+        }
+        return annotation;
+      });
+      
+      // Update the screenshot data
+      const updatedScreenshot = {
+        ...currentScreenshot,
+        annotations: updatedAnnotations
+      };
+      
+      setCurrentScreenshot(updatedScreenshot);
+      
+      // Save to sidecar file
+      try {
+        await window.electron.invoke('sidecar-update', currentScreenshot.filePath, {
+          annotations: updatedAnnotations
+        });
+        console.log('✅ [ANNOTATIONS] Successfully updated annotation positions in sidecar file');
+      } catch (error) {
+        console.error('❌ [ANNOTATIONS] Failed to save annotation positions to sidecar file:', error);
+      }
+      
+      // Reset drag/resize state
+      updateDrawingState({
+        isDragging: false,
+        dragStartPoint: null,
+        isResizing: false,
+        resizeHandle: null
+      });
+      
+    } catch (error) {
+      console.error('Error ending annotation drag/resize:', error);
+      // Reset drag/resize state on error
+      updateDrawingState({
+        isDragging: false,
+        dragStartPoint: null,
+        isResizing: false,
+        resizeHandle: null
+      });
+    }
+  };
+
   const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Handle ending drag or resize operation for selected annotations
+    if (drawingState.selectedTool === 'select' && (drawingState.isDragging || drawingState.isResizing)) {
+      handleAnnotationDragEnd(e);
+      return;
+    }
+    
     if (!isDrawing || !canvasRef.current || !isCanvasReady) {
       return;
     }
@@ -745,7 +1467,7 @@ export function Canvas() {
   };
 
   return (
-    <div className="flex-1 bg-gray-300 relative flex flex-col">
+    <div className="w-full h-full bg-gray-300 relative flex flex-col">
 
       {/* Canvas Content */}
       <div className="flex-1 relative overflow-hidden">
@@ -782,14 +1504,10 @@ export function Canvas() {
                 className="absolute top-0 left-0"
                 style={{
                   pointerEvents: drawingState.selectedTool ? 'auto' : 'none',
-                  cursor: drawingState.selectedTool ? (
-                    drawingState.selectedTool === 'text' ? 'text' :
-                    drawingState.selectedTool === 'numbering' ? 'pointer' :
-                    'crosshair'
-                  ) : 'default'
+                  cursor: cursorStyle
                 }}
                 onMouseDown={startDrawing}
-                onMouseMove={draw}
+                onMouseMove={handleMouseMove}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
               />
@@ -798,14 +1516,6 @@ export function Canvas() {
         )}
       </div>
 
-      {/* Search box in top right */}
-      <div className="absolute top-16 right-4">
-        <input
-          type="text"
-          placeholder="Type to search (Ctrl+F)"
-          className="px-3 py-1 text-sm border border-gray-400 bg-white rounded w-48"
-        />
-      </div>
       
       {/* Text Input Modal */}
       {showTextInput && (
@@ -842,6 +1552,16 @@ export function Canvas() {
             Press Enter to add, Escape to cancel
           </div>
         </div>
+      )}
+
+      {/* Annotation Property Editor */}
+      {drawingState.selectedAnnotations && drawingState.selectedAnnotations.length > 0 && currentScreenshot?.annotations && (
+        <AnnotationPropertyEditor
+          selectedAnnotations={drawingState.selectedAnnotations}
+          annotations={currentScreenshot.annotations}
+          onUpdateAnnotation={handleUpdateAnnotation}
+          onClose={() => updateDrawingState({ selectedAnnotations: [] })}
+        />
       )}
     </div>
   );

@@ -73,6 +73,9 @@ export interface SidecarData {
   annotations: SidecarAnnotation[];
   editHistory: SidecarEditOperation[];
   ocrText?: string;
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedFromPath?: string;
 }
 
 class SidecarManager {
@@ -200,7 +203,7 @@ class SidecarManager {
    */
   async updateSidecarFile(
     imagePath: string,
-    updates: Partial<Pick<SidecarData, 'tags' | 'notes' | 'annotations' | 'ocrText'>>
+    updates: Partial<Pick<SidecarData, 'tags' | 'notes' | 'annotations' | 'ocrText' | 'isArchived' | 'archivedAt' | 'archivedFromPath'>>
   ): Promise<boolean> {
     try {
       const sidecarData = await this.loadSidecarFile(imagePath);
@@ -395,6 +398,93 @@ class SidecarManager {
   private getLegacySidecarPath(imagePath: string): string {
     const parsedPath = path.parse(imagePath);
     return path.join(parsedPath.dir, parsedPath.name + this.SIDECAR_EXTENSION);
+  }
+
+  /**
+   * Mark a screenshot as archived in its sidecar file
+   */
+  async markAsArchived(imagePath: string, archivedFromPath?: string): Promise<boolean> {
+    try {
+      let sidecarData = await this.loadSidecarFile(imagePath);
+      
+      // Create sidecar if it doesn't exist
+      if (!sidecarData) {
+        const createResult = await this.createSidecarFile(imagePath, {
+          captureTimestamp: new Date().toISOString(),
+          applicationInfo: { name: 'ScreenshotOS' },
+          screenInfo: { resolution: { width: 0, height: 0 } },
+          deviceInfo: {},
+          captureMethod: 'fullscreen'
+        });
+        
+        if (!createResult) {
+          return false;
+        }
+        
+        sidecarData = await this.loadSidecarFile(imagePath);
+        if (!sidecarData) {
+          return false;
+        }
+      }
+      
+      // Update archive status
+      const updatedData: SidecarData = {
+        ...sidecarData,
+        isArchived: true,
+        archivedAt: new Date().toISOString(),
+        archivedFromPath: archivedFromPath || imagePath,
+        modifiedAt: new Date().toISOString()
+      };
+      
+      const sidecarPath = this.getSidecarPath(imagePath);
+      await fs.promises.writeFile(sidecarPath, JSON.stringify(updatedData, null, 2), 'utf8');
+      
+      return true;
+    } catch (error) {
+      console.error('Error marking screenshot as archived:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Remove archive status from a screenshot's sidecar file
+   */
+  async markAsUnarchived(imagePath: string): Promise<boolean> {
+    try {
+      const sidecarData = await this.loadSidecarFile(imagePath);
+      if (!sidecarData) {
+        return true; // No sidecar means not archived
+      }
+      
+      // Remove archive status
+      const updatedData: SidecarData = {
+        ...sidecarData,
+        isArchived: false,
+        archivedAt: undefined,
+        archivedFromPath: undefined,
+        modifiedAt: new Date().toISOString()
+      };
+      
+      const sidecarPath = this.getSidecarPath(imagePath);
+      await fs.promises.writeFile(sidecarPath, JSON.stringify(updatedData, null, 2), 'utf8');
+      
+      return true;
+    } catch (error) {
+      console.error('Error marking screenshot as unarchived:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if a screenshot is marked as archived
+   */
+  async isArchived(imagePath: string): Promise<boolean> {
+    try {
+      const sidecarData = await this.loadSidecarFile(imagePath);
+      return sidecarData?.isArchived === true;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**

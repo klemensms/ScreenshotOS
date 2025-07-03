@@ -10,8 +10,11 @@ const configFile = path.join(configDir, 'storage-config.json');
 // Default config
 const defaultConfig = {
   saveDirectory: path.join(homedir(), 'Downloads'),
+  archiveDirectory: path.join(homedir(), 'Downloads', 'Archive'),
   filenameTemplate: 'screenshot_%TIMESTAMP%',
   fileFormat: 'png',
+  deleteConfirmation: true,
+  archiveConfirmation: false,
   shortcuts: {
     fullScreen: 'CommandOrControl+Shift+3',
     areaCapture: 'CommandOrControl+Shift+4'
@@ -26,8 +29,11 @@ export interface ShortcutConfig {
 
 export interface StorageConfig {
   saveDirectory: string;
+  archiveDirectory: string;
   filenameTemplate: string;
   fileFormat: string;
+  deleteConfirmation: boolean;
+  archiveConfirmation: boolean;
   shortcuts: ShortcutConfig;
 }
 
@@ -99,4 +105,19 @@ export function ensureSaveDirectory(directory?: string): string {
   }
   
   return saveDir;
+}
+
+/**
+ * Ensures the archive directory exists
+ */
+export function ensureArchiveDirectory(directory?: string): string {
+  const config = loadStorageConfig();
+  const archiveDir = directory || config.archiveDirectory;
+  
+  if (!fs.existsSync(archiveDir)) {
+    fs.mkdirSync(archiveDir, { recursive: true });
+    console.log(`Created archive directory: ${archiveDir}`);
+  }
+  
+  return archiveDir;
 }

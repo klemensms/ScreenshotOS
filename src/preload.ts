@@ -38,7 +38,25 @@ contextBridge.exposeInMainWorld('electron', {
       'file-stats',
       'read-image-file',
       'validate-shortcut',
-      'test-shortcuts'
+      'test-shortcuts',
+      'indexer-search',
+      'indexer-get-stats',
+      'indexer-get-by-tags',
+      'indexer-get-by-date-range',
+      'indexer-rescan',
+      'thumbnail-get',
+      'thumbnail-get-base64',
+      'thumbnail-pregenerate',
+      'thumbnail-cache-stats',
+      'thumbnail-clear-cache',
+      'file-archive-screenshot',
+      'file-archive-screenshots',
+      'file-delete-screenshot',
+      'file-delete-screenshots',
+      'file-restore-screenshot',
+      'file-get-recently-deleted',
+      'file-cleanup-orphaned-sidecars',
+      'file-get-statistics'
     ];
     
     if (validChannels.includes(channel)) {
