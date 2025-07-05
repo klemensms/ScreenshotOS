@@ -106,6 +106,10 @@ export function RecentPanel() {
               LIBRARY
             </button>
           </div>
+          <div className="text-xs text-gray-500">
+            {screenshots.length} {screenshots.length === 1 ? 'file' : 'files'}
+            {hasMoreFiles && ' (more available)'}
+          </div>
         </div>
       </div>
 
@@ -223,6 +227,21 @@ export function RecentPanel() {
         {!hasMoreFiles && items.length > 0 && (
           <div className="p-4 text-center text-gray-400">
             <span className="text-xs">No more screenshots to load</span>
+          </div>
+        )}
+        
+        {/* Manual load more button as fallback */}
+        {hasMoreFiles && !isLoadingMore && items.length > 0 && (
+          <div className="p-4 text-center">
+            <button
+              onClick={() => {
+                console.log('📱 [RECENT_PANEL] Manual load more button clicked');
+                loadMoreScreenshots();
+              }}
+              className="px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Load More Screenshots
+            </button>
           </div>
         )}
       </div>

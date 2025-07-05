@@ -37,7 +37,28 @@ const ItemRenderer: React.FC<ItemRendererProps> = ({ index, style, data }) => {
   const { items, currentScreenshot, onScreenshotSelect, getTagInfo, selectedItems, onToggleSelection, onContextMenu, isSelectionMode, activeView } = data;
   const item = items[index];
 
-  if (!item) return null;
+  // Enhanced error handling and debugging
+  if (!item) {
+    console.warn(`📝 [ITEM_RENDERER] No item at index ${index}, total items: ${items?.length || 0}`);
+    return (
+      <div style={style}>
+        <div className="flex items-center justify-center p-3 text-gray-400 text-sm">
+          Missing item at index {index}
+        </div>
+      </div>
+    );
+  }
+
+  if (!item.screenshot) {
+    console.warn(`📝 [ITEM_RENDERER] Item at index ${index} has no screenshot data:`, item);
+    return (
+      <div style={style}>
+        <div className="flex items-center justify-center p-3 text-gray-400 text-sm">
+          Invalid screenshot data
+        </div>
+      </div>
+    );
+  }
 
   const isSelected = selectedItems.has(item.id);
   const isArchived = activeView === 'ARCHIVED';
@@ -171,12 +192,68 @@ export function VirtualizedRecentPanel() {
   const [archivedScreenshots, setArchivedScreenshots] = useState<any[]>([]);
   const [isLoadingArchived, setIsLoadingArchived] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(800); // Dynamic height state - default to 800px to show more items
   
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
   const { dialog, showConfirmation, hideConfirmation, confirmAndClose } = useConfirmationDialog();
   
   const { screenshots, currentScreenshot, setCurrentScreenshot, loadMoreScreenshots, isLoadingMore, hasMoreFiles } = useApp();
 
+  // Dynamic height calculation effect
+  useEffect(() => {
+    const calculateListHeight = () => {
+      let newHeight = 800; // Default fallback
+      
+      if (listContainerRef.current) {
+        const containerHeight = listContainerRef.current.clientHeight;
+        if (containerHeight > 100) { // Only use if we get a reasonable height
+          newHeight = Math.max(600, containerHeight - 20); // Subtract some padding, minimum 600px for better visibility
+        } else {
+          // Fallback to window height calculation
+          const windowHeight = window.innerHeight;
+          const estimatedHeight = Math.max(600, windowHeight - 300); // Account for header, etc.
+          newHeight = estimatedHeight;
+          console.log(`📏 [VIRTUAL_LIST] Using window height fallback: ${estimatedHeight}px`);
+        }
+        const visibleItems = Math.floor(newHeight / 76);
+        console.log(`📏 [VIRTUAL_LIST] Container height: ${containerHeight}px, setting list height to: ${newHeight}px`);
+        console.log(`📏 [VIRTUAL_LIST] This allows ${visibleItems} visible items (76px each)`);
+      } else {
+        console.warn(`📏 [VIRTUAL_LIST] Container ref not available, using fallback height: ${newHeight}px`);
+      }
+      
+      setListHeight(newHeight);
+    };
+
+    // Try multiple times with increasing delays to ensure DOM is ready
+    const timeouts = [100, 500, 1000];
+    const timeoutIds = timeouts.map(delay => 
+      setTimeout(() => {
+        calculateListHeight();
+      }, delay)
+    );
+
+    // Add resize observer to handle container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      console.log(`📏 [VIRTUAL_LIST] Container resized, recalculating...`);
+      calculateListHeight();
+    });
+
+    // Observe with a slight delay to ensure ref is set
+    const observerTimeout = setTimeout(() => {
+      if (listContainerRef.current) {
+        resizeObserver.observe(listContainerRef.current);
+      }
+    }, 50);
+
+    // Cleanup
+    return () => {
+      timeoutIds.forEach(id => clearTimeout(id));
+      clearTimeout(observerTimeout);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   // Debug: Log what VirtualizedRecentPanel receives
   React.useEffect(() => {
@@ -191,6 +268,12 @@ export function VirtualizedRecentPanel() {
       console.warn(`📱 [VIRTUALIZED_RECENT_PANEL] No screenshots received from context`);
     }
   }, [screenshots]);
+
+  // Debug: Log list height and item count
+  useEffect(() => {
+    const visibleItems = Math.floor(listHeight / 76);
+    console.log(`📏 [VIRTUAL_LIST] List height: ${listHeight}px, Item size: 76px, Visible items: ${visibleItems}, Total items: ${getCurrentItems().length}`);
+  }, [listHeight, screenshots.length]);
 
   React.useEffect(() => {
     debugLogger.log('VirtualizedRecentPanel', 'activeView changed', activeView);
@@ -605,12 +688,17 @@ export function VirtualizedRecentPanel() {
 
   // Get items for rendering (recalculated each render to avoid circular deps)
   const items = getCurrentItems();
+  
+  // Debug: Log items array details
+  useEffect(() => {
+    console.log(`📝 [ITEMS_DEBUG] Total screenshots: ${screenshots.length}, Items for display: ${items.length}`);
+    if (items.length > 0) {
+      console.log(`📝 [ITEMS_DEBUG] First 5 items:`, items.slice(0, 5).map((item, idx) => `${idx}: ${item.title} (id: ${item.id})`));
+      console.log(`📝 [ITEMS_DEBUG] Last 5 items:`, items.slice(-5).map((item, idx) => `${items.length - 5 + idx}: ${item.title} (id: ${item.id})`));
+    }
+  }, [items.length, screenshots.length]);
 
-  // Calculate list height dynamically
-  const listHeight = useMemo(() => {
-    // Use a reasonable fixed height that works well with the layout
-    return 600; // Fixed height to prevent scroll bar issues
-  }, []);
+  // The listHeight is now managed by the dynamic calculation effect above
 
   // Data object for ItemRenderer - simplified to avoid circular dependencies
   const itemData = {
@@ -627,9 +715,13 @@ export function VirtualizedRecentPanel() {
 
   // Handle scroll for infinite loading
   const handleScroll = useCallback(({ scrollOffset, scrollDirection, scrollUpdateWasRequested, clientHeight, scrollHeight }) => {
+    console.log(`📜 [SCROLL_DEBUG] Scroll event - offset: ${scrollOffset}, direction: ${scrollDirection}, clientHeight: ${clientHeight}, scrollHeight: ${scrollHeight}`);
+    
     // Load more when user is within 100px of the bottom and scrolling down
     const scrollPosition = scrollOffset + clientHeight;
     const threshold = scrollHeight - 100; // Reduced threshold for earlier loading
+    
+    console.log(`📜 [SCROLL_DEBUG] ScrollPosition: ${scrollPosition}, Threshold: ${threshold}, HasMoreFiles: ${hasMoreFiles}, IsLoading: ${isLoadingMore}`);
     
     if (scrollPosition >= threshold && scrollDirection === 'forward' && !isLoadingMore && hasMoreFiles) {
       debugLogger.log('VirtualizedRecentPanel', 'loadMoreScreenshots triggered', { scrollOffset, scrollHeight });
@@ -643,6 +735,7 @@ export function VirtualizedRecentPanel() {
       ref={containerRef}
       className="VirtualizedRecentPanel bg-white border-l border-gray-300 h-full flex flex-col overflow-hidden w-full" 
       tabIndex={0}
+      style={{ height: '100%' }} // Ensure explicit height for proper flex calculation
     >
       {/* Header */}
       <div className="bg-gray-100 border-b border-gray-300 px-3 py-2">
@@ -771,18 +864,25 @@ export function VirtualizedRecentPanel() {
         isSearching={isSearching}
       />
 
+      {/* Debug Info (remove in production) */}
+      <div className="px-3 py-1 bg-gray-50 border-b border-gray-200 text-xs text-gray-600">
+        Screenshots: {screenshots.length} | Items: {items.length} | Height: {listHeight}px | 
+        Visible: {Math.floor(listHeight / 76)} | HasMore: {hasMoreFiles ? 'Yes' : 'No'}
+      </div>
+
       {/* Virtual List */}
-      <div className="flex-1 relative overflow-hidden">
+      <div ref={listContainerRef} className="flex-1 relative overflow-hidden">
         {items.length > 0 ? (
           <List
+            key={`list-${items.length}-${activeView}`} // Force re-render when items change
             height={listHeight}
             width="100%"
             itemCount={items.length}
             itemSize={76} // Fixed height per item (48px thumbnail + 28px padding)
             itemData={itemData}
             onScroll={handleScroll}
-            overscanCount={5} // Render a few extra items for smooth scrolling
-            style={{ overflow: 'hidden' }}
+            overscanCount={10} // Render more extra items for better scrolling
+            style={{}} // Remove overflow hidden to allow scrolling
           >
             {ItemRenderer}
           </List>

@@ -59,7 +59,11 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             'file-restore-screenshot',
             'file-get-recently-deleted',
             'file-cleanup-orphaned-sidecars',
-            'file-get-statistics'
+            'file-get-statistics',
+            'ocr-get-status',
+            'ocr-queue-for-processing',
+            'ocr-get-queue-size',
+            'ocr-is-processing'
         ];
         if (validChannels.includes(channel)) {
             return electron_1.ipcRenderer.invoke.apply(electron_1.ipcRenderer, __spreadArray([channel], args, false));
@@ -90,5 +94,11 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
     },
     removeNewScreenshotListener: function (callback) {
         electron_1.ipcRenderer.removeListener('new-screenshot-created', callback);
+    },
+    onOCRCompleted: function (callback) {
+        electron_1.ipcRenderer.on('ocr-completed', function (event, data) { return callback(data); });
+    },
+    removeOCRCompletedListener: function (callback) {
+        electron_1.ipcRenderer.removeListener('ocr-completed', callback);
     }
 });

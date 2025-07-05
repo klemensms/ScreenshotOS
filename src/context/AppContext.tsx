@@ -59,8 +59,16 @@ export interface Screenshot {
   tags: string[];
   notes?: string;
   ocrText?: string;
+  ocrCompleted?: boolean;
   annotations?: Annotation[];
   hasSidecar?: boolean; // Track whether this screenshot has an associated sidecar file
+  applicationInfo?: {
+    name: string;
+    bundleId?: string;
+    version?: string;
+    windowTitle?: string;
+  };
+  captureMethod?: 'fullscreen' | 'area' | 'window';
 }
 
 export interface Annotation {
@@ -230,6 +238,7 @@ function createBasicScreenshot(imagePath: string, base64Image: string, index: nu
     tags: [],
     notes: '',
     ocrText: '',
+    ocrCompleted: false,
     annotations: [],
     hasSidecar: false // No sidecar file initially
   };
@@ -331,12 +340,19 @@ export function AppProvider({ children }: AppProviderProps) {
             tags: [],
             notes: '',
             ocrText: '',
-            annotations: []
+            annotations: [],
+            applicationInfo: data.metadata?.applicationInfo,
+            captureMethod: data.metadata?.captureMethod
           };
           
           // Add to screenshots list and set as current
           console.log('🔄 [IPC] Adding new screenshot to state:', newScreenshot.name);
-          setScreenshots(prev => [newScreenshot, ...prev]);
+          setScreenshots(prev => {
+            const updated = [newScreenshot, ...prev];
+            // Sort by timestamp (newest first) to maintain chronological order
+            updated.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            return updated;
+          });
           setCurrentScreenshot(newScreenshot);
           
           console.log('✅ [IPC] New screenshot added to UI successfully:', newScreenshot.name);
@@ -349,15 +365,58 @@ export function AppProvider({ children }: AppProviderProps) {
       }
     };
     
-    // Set up listener
+    // Set up listener for new screenshots
     debugLogger.log('AppContext', 'addEventListener', 'onNewScreenshot');
     window.electron.onNewScreenshot(handleNewScreenshot);
     
-    // Cleanup listener on unmount
+    // Set up listener for OCR completion events
+    const handleOCRCompleted = async (data: { imagePath: string; ocrText: string; ocrCompleted: boolean }) => {
+      try {
+        console.log('📨 [OCR] OCR completed event received:', data);
+        
+        // Update screenshots array with new OCR data
+        setScreenshots(prev => {
+          return prev.map(screenshot => {
+            if (screenshot.filePath === data.imagePath) {
+              console.log(`🔄 [OCR] Updating screenshot with OCR text: ${data.imagePath}`);
+              return {
+                ...screenshot,
+                ocrText: data.ocrText,
+                ocrCompleted: data.ocrCompleted
+              };
+            }
+            return screenshot;
+          });
+        });
+        
+        // Update current screenshot if it matches
+        setCurrentScreenshot(prev => {
+          if (prev && prev.filePath === data.imagePath) {
+            console.log(`🔄 [OCR] Updating current screenshot with OCR text: ${data.imagePath}`);
+            return {
+              ...prev,
+              ocrText: data.ocrText,
+              ocrCompleted: data.ocrCompleted
+            };
+          }
+          return prev;
+        });
+        
+        console.log('✅ [OCR] Screenshot updated with OCR data successfully');
+      } catch (error) {
+        console.error('❌ [OCR] Error handling OCR completion event:', error);
+      }
+    };
+    
+    debugLogger.log('AppContext', 'addEventListener', 'onOCRCompleted');
+    window.electron.onOCRCompleted(handleOCRCompleted);
+    
+    // Cleanup listeners on unmount
     return () => {
-      debugLogger.log('AppContext', 'removeEventListener', 'onNewScreenshot cleanup');
+      debugLogger.log('AppContext', 'removeEventListener', 'cleanup listeners');
       window.electron.removeNewScreenshotListener(handleNewScreenshot);
-      console.log('🧹 [APP_CONTEXT] Cleaning up useEffect - removed listeners');
+      window.electron.removeOCRCompletedListener(handleOCRCompleted);
+      console.log('🧹 [APP_CONTEXT] Cleaning up useEffect - removed all listeners');
     };
   }, []);
 
@@ -471,26 +530,40 @@ export function AppProvider({ children }: AppProviderProps) {
         }
         
         // Process files with async batching to prevent blocking
-        const processImage = async (imageFileInfo: any, index: number, abortSignal: AbortSignal): Promise<Screenshot | null> => {
+        const processImage = async (imageFileInfo: any, index: number, abortSignal: AbortSignal, retryCount = 0): Promise<Screenshot | null> => {
           if (abortSignal.aborted) {
             throw new Error('Processing aborted');
           }
           
+          const MAX_RETRIES = 2;
+          const filename = imageFileInfo.imagePath.split('/').pop();
+          
           try {
-            console.log(`🔄 [LOADING] Processing image ${index + 1}/${filesToLoad.length}:`, imageFileInfo.imagePath);
+            console.log(`🔄 [LOADING] Processing image ${index + 1}/${filesToLoad.length}: ${filename} (${imageFileInfo.fileSize.toFixed(1)}MB)${retryCount > 0 ? ` - Retry ${retryCount}/${MAX_RETRIES}` : ''}`);
             
-            // Load image data with timeout
+            // Load image data with timeout and retry logic
             let imageData;
             try {
+              // Reduce timeout for smaller files, increase for larger
+              const timeoutMs = Math.min(IMAGE_LOAD_TIMEOUT_MS, Math.max(5000, imageFileInfo.fileSize * 1000)); // 1s per MB, min 5s, max 15s
+              
               imageData = await Promise.race([
                 window.electron.invoke('read-image-file', imageFileInfo.imagePath),
                 new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error(`Image loading timeout (${IMAGE_LOAD_TIMEOUT_MS / 1000}s)`)), IMAGE_LOAD_TIMEOUT_MS)
+                  setTimeout(() => reject(new Error(`Image loading timeout (${timeoutMs / 1000}s)`)), timeoutMs)
                 )
               ]);
             } catch (timeoutError) {
-              const filename = imageFileInfo.imagePath.split('/').pop();
-              console.error(`❌ [LOADING] Image loading failed/timeout for: ${filename} (${imageFileInfo.fileSize.toFixed(1)}MB)`);
+              console.error(`⏱️ [LOADING] Timeout loading: ${filename} (${imageFileInfo.fileSize.toFixed(1)}MB) - ${timeoutError.message}`);
+              
+              // Retry logic
+              if (retryCount < MAX_RETRIES) {
+                console.log(`🔄 [LOADING] Retrying ${filename}...`);
+                await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause before retry
+                return processImage(imageFileInfo, index, abortSignal, retryCount + 1);
+              }
+              
+              console.error(`❌ [LOADING] Failed after ${MAX_RETRIES} retries: ${filename}`);
               return null;
             }
             
@@ -523,6 +596,7 @@ export function AppProvider({ children }: AppProviderProps) {
                   tags: sidecarData.tags || [],
                   notes: sidecarData.notes || '',
                   ocrText: sidecarData.ocrText || '',
+                  ocrCompleted: sidecarData.ocrCompleted || false,
                   annotations: sidecarData.annotations?.map(ann => ({
                     id: ann.id,
                     type: ann.type,
@@ -532,7 +606,9 @@ export function AppProvider({ children }: AppProviderProps) {
                     number: ann.number,
                     blurIntensity: ann.blurIntensity
                   })) || [],
-                  hasSidecar: true
+                  hasSidecar: true,
+                  applicationInfo: sidecarData.metadata.applicationInfo,
+                  captureMethod: sidecarData.metadata.captureMethod
                 };
               } else {
                 screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
@@ -550,8 +626,8 @@ export function AppProvider({ children }: AppProviderProps) {
           }
         };
         
-        // Process files in batches of 2 to prevent overwhelming the system
-        const BATCH_SIZE = 2;
+        // Process files in batches of 1 for more reliable loading
+        const BATCH_SIZE = 1; // Reduced from 2 to prevent timeouts
         const abortController = new AbortController();
         
         // Simple memory check before starting
@@ -567,7 +643,7 @@ export function AppProvider({ children }: AppProviderProps) {
           for (let i = 0; i < filesToLoad.length; i += BATCH_SIZE) {
             const batch = filesToLoad.slice(i, i + BATCH_SIZE);
             const batchPromises = batch.map((imageFileInfo, batchIndex) => 
-              processImage(imageFileInfo, i + batchIndex, abortController.signal)
+              processImage(imageFileInfo, i + batchIndex, abortController.signal, 0)
             );
             
             const batchResults = await Promise.allSettled(batchPromises);
@@ -595,6 +671,18 @@ export function AppProvider({ children }: AppProviderProps) {
         console.log(`    - ${loadedScreenshots.length}/${filesToLoad.length} files loaded successfully`);
         if (failedToLoad > 0) {
           console.warn(`    - ${failedToLoad} files failed to load (timeouts, read errors, or invalid data)`);
+          console.warn(`    - Consider checking file permissions, disk space, or reducing file sizes`);
+        }
+        
+        // Log specific details about loaded files
+        if (loadedScreenshots.length > 0) {
+          console.log(`✅ [LOADING] Successfully loaded files:`);
+          loadedScreenshots.slice(0, 5).forEach((screenshot, idx) => {
+            console.log(`    ${idx + 1}. ${screenshot.name} - ${screenshot.filePath.split('/').pop()}`);
+          });
+          if (loadedScreenshots.length > 5) {
+            console.log(`    ... and ${loadedScreenshots.length - 5} more files`);
+          }
         }
         
         // Final memory check
@@ -670,7 +758,10 @@ export function AppProvider({ children }: AppProviderProps) {
   };
 
   const loadMoreScreenshots = async () => {
+    console.log(`📜 [LOAD_MORE] loadMoreScreenshots called - isLoadingMore: ${isLoadingMore}, hasMoreFiles: ${hasMoreFiles}, offset: ${loadedFileOffset}`);
+    
     if (isLoadingMore || !hasMoreFiles) {
+      console.log(`⚠️ [LOAD_MORE] Skipping - already loading: ${isLoadingMore}, no more files: ${!hasMoreFiles}`);
       return; // Prevent multiple simultaneous loads or loading when no more files
     }
 
@@ -678,6 +769,7 @@ export function AppProvider({ children }: AppProviderProps) {
     
     try {
       console.log(`🔄 [LOAD_MORE] Loading more screenshots starting from offset ${loadedFileOffset}`);
+      console.log(`🔄 [LOAD_MORE] Total available files: ${allAvailableFiles.length}`);
       
       const BATCH_SIZE = 20; // Match initial load size for consistency
       
@@ -685,10 +777,10 @@ export function AppProvider({ children }: AppProviderProps) {
       const nextBatch = allAvailableFiles.slice(loadedFileOffset, loadedFileOffset + BATCH_SIZE);
       
       console.log(`🔄 [LOAD_MORE] Getting files from offset ${loadedFileOffset}, batch size ${BATCH_SIZE}`);
-      console.log(`🔄 [LOAD_MORE] Available files total: ${allAvailableFiles.length}, next batch: ${nextBatch.length}`);
+      console.log(`🔄 [LOAD_MORE] Next batch contains ${nextBatch.length} files`);
       
       if (nextBatch.length === 0) {
-        console.log(`ℹ️ [LOAD_MORE] No more files to load`);
+        console.log(`ℹ️ [LOAD_MORE] No more files to load - reached end of list`);
         setHasMoreFiles(false);
         setIsLoadingMore(false);
         return;
@@ -697,69 +789,97 @@ export function AppProvider({ children }: AppProviderProps) {
       // Load the files (no need to re-filter, they're already validated)
       const newScreenshots: Screenshot[] = [];
       
+      // Process each file with retry logic
       for (let index = 0; index < nextBatch.length; index++) {
         const imageFileInfo = nextBatch[index];
-        let imageData = null;
+        const MAX_RETRIES = 2;
+        let success = false;
         
-        try {
-          console.log(`🔄 [LOAD_MORE] Processing image ${index + 1}/${nextBatch.length}:`, imageFileInfo.imagePath);
+        for (let retryCount = 0; retryCount <= MAX_RETRIES && !success; retryCount++) {
+          const filename = imageFileInfo.imagePath.split('/').pop();
           
-          // Load image data with increased timeout for larger files
-          imageData = await ipcWithTimeout('read-image-file', imageFileInfo.imagePath, IMAGE_LOAD_TIMEOUT_MS);
-          
-          if (!imageData || !imageData.success || !imageData.base64) {
-            console.warn(`⚠️ [LOAD_MORE] Invalid image data for:`, imageFileInfo.imagePath);
-            continue;
-          }
-          
-          let screenshot: Screenshot;
-          
-          if (imageFileInfo.hasSidecar) {
-            // Load sidecar data
-            const sidecarResult = await rendererSidecarManager.loadSidecarFileFromPath(imageFileInfo.sidecarPath);
+          try {
+            console.log(`🔄 [LOAD_MORE] Processing image ${index + 1}/${nextBatch.length}: ${filename}${retryCount > 0 ? ` - Retry ${retryCount}/${MAX_RETRIES}` : ''}`);
             
-            if (sidecarResult.success && sidecarResult.data) {
-              const sidecarData = sidecarResult.data;
-              screenshot = {
-                id: `loaded-more-${Date.now()}-${Math.random()}-${index}`,
-                name: `Screenshot ${new Date(sidecarData.createdAt).toLocaleString()}`,
-                base64Image: imageData.base64,
-                filePath: imageFileInfo.imagePath,
-                timestamp: new Date(sidecarData.createdAt),
-                dimensions: {
-                  width: sidecarData.metadata.screenInfo?.resolution?.width || 1920,
-                  height: sidecarData.metadata.screenInfo?.resolution?.height || 1080
-                },
-                tags: sidecarData.tags || [],
-                notes: sidecarData.notes || '',
-                ocrText: sidecarData.ocrText || '',
-                annotations: sidecarData.annotations?.map(ann => ({
-                  id: ann.id,
-                  type: ann.type,
-                  color: ann.color,
-                  position: ann.position,
-                  text: ann.text,
-                  number: ann.number,
-                  blurIntensity: ann.blurIntensity
-                })) || [],
-                hasSidecar: true
-              };
+            // Load image data with dynamic timeout based on file size
+            const timeoutMs = Math.min(IMAGE_LOAD_TIMEOUT_MS, Math.max(5000, imageFileInfo.fileSize * 1000));
+            const imageData = await ipcWithTimeout('read-image-file', imageFileInfo.imagePath, timeoutMs);
+            
+            if (!imageData || !imageData.success || !imageData.base64) {
+              console.warn(`⚠️ [LOAD_MORE] Invalid image data for: ${filename}`);
+              if (retryCount < MAX_RETRIES) {
+                await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause before retry
+                continue;
+              }
+              break;
+            }
+            
+            let screenshot: Screenshot;
+            
+            if (imageFileInfo.hasSidecar) {
+              // Load sidecar data
+              const sidecarResult = await rendererSidecarManager.loadSidecarFileFromPath(imageFileInfo.sidecarPath);
+              
+              if (sidecarResult.success && sidecarResult.data) {
+                const sidecarData = sidecarResult.data;
+                screenshot = {
+                  id: `loaded-more-${Date.now()}-${Math.random()}-${index}`,
+                  name: `Screenshot ${new Date(sidecarData.createdAt).toLocaleString()}`,
+                  base64Image: imageData.base64,
+                  filePath: imageFileInfo.imagePath,
+                  timestamp: new Date(sidecarData.createdAt),
+                  dimensions: {
+                    width: sidecarData.metadata.screenInfo?.resolution?.width || 1920,
+                    height: sidecarData.metadata.screenInfo?.resolution?.height || 1080
+                  },
+                  tags: sidecarData.tags || [],
+                  notes: sidecarData.notes || '',
+                  ocrText: sidecarData.ocrText || '',
+                  ocrCompleted: sidecarData.ocrCompleted || false,
+                  annotations: sidecarData.annotations?.map(ann => ({
+                    id: ann.id,
+                    type: ann.type,
+                    color: ann.color,
+                    position: ann.position,
+                    text: ann.text,
+                    number: ann.number,
+                    blurIntensity: ann.blurIntensity
+                  })) || [],
+                  hasSidecar: true,
+                  applicationInfo: sidecarData.metadata.applicationInfo,
+                  captureMethod: sidecarData.metadata.captureMethod
+                };
+              } else {
+                screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
+              }
             } else {
               screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
             }
-          } else {
-            screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
+            
+            newScreenshots.push(screenshot);
+            success = true;
+          } catch (error) {
+            console.error(`❌ [LOAD_MORE] Error processing file ${filename}:`, error);
+            if (retryCount < MAX_RETRIES) {
+              console.log(`🔄 [LOAD_MORE] Will retry ${filename}...`);
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
           }
-          
-          newScreenshots.push(screenshot);
-        } catch (error) {
-          console.error(`❌ [LOAD_MORE] Error processing file:`, imageFileInfo.imagePath, error);
+        }
+        
+        if (!success) {
+          console.error(`❌ [LOAD_MORE] Failed to load file after ${MAX_RETRIES} retries: ${imageFileInfo.imagePath.split('/').pop()}`);
         }
       }
       
       if (newScreenshots.length > 0) {
-        // Append new screenshots to existing ones
-        setScreenshots(prev => [...prev, ...newScreenshots]);
+        // Merge new screenshots with existing ones and maintain sort order (newest first)
+        setScreenshots(prev => {
+          const combined = [...prev, ...newScreenshots];
+          // Sort by timestamp (newest first) to maintain chronological order
+          combined.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+          return combined;
+        });
         setLoadedFileOffset(prev => prev + nextBatch.length);
         
         console.log(`✅ [LOAD_MORE] Loaded ${newScreenshots.length} additional screenshots`);
@@ -785,7 +905,12 @@ export function AppProvider({ children }: AppProviderProps) {
   };
 
   const addScreenshot = async (screenshot: Screenshot, captureMethod: 'fullscreen' | 'area' | 'window' = 'area', captureArea?: { x: number; y: number; width: number; height: number }) => {
-    setScreenshots(prev => [screenshot, ...prev]);
+    setScreenshots(prev => {
+      const updated = [screenshot, ...prev];
+      // Sort by timestamp (newest first) to maintain chronological order
+      updated.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      return updated;
+    });
     setCurrentScreenshot(screenshot);
     
     console.log('Screenshot added to UI (sidecar creation deferred):', screenshot.filePath);
@@ -922,11 +1047,18 @@ export function AppProvider({ children }: AppProviderProps) {
 
     setIsCapturing(true);
     try {
-      // First trigger the area overlay
-      const area = await ipcWithTimeout('trigger-area-overlay', undefined, 30000);
-      if (area) {
-        // Then capture the selected area with display ID
-        const result = await ipcWithTimeout('capture-area', { area, displayId: area.displayId }, 15000);
+      // First trigger the area overlay (this now returns both area and applicationInfo)
+      const overlayResult = await ipcWithTimeout('trigger-area-overlay', undefined, 30000);
+      if (overlayResult) {
+        const { applicationInfo, ...area } = overlayResult;
+        console.log('🎯 [AREA_CAPTURE] Received application info:', applicationInfo);
+        
+        // Then capture the selected area with display ID and application info
+        const result = await ipcWithTimeout('capture-area', { 
+          area, 
+          displayId: area.displayId,
+          applicationInfo 
+        }, 15000);
         if (result) {
           const screenshot: Screenshot = {
             id: `screenshot-${Date.now()}`,
@@ -942,10 +1074,12 @@ export function AppProvider({ children }: AppProviderProps) {
             notes: '',
             ocrText: '',
             annotations: [],
-            hasSidecar: false // No sidecar created yet (lazy creation)
+            hasSidecar: true, // Sidecar is now created by the backend
+            applicationInfo,
+            captureMethod: 'area'
           };
           await addScreenshot(screenshot, 'area', area);
-          console.log('Area screenshot captured successfully');
+          console.log('Area screenshot captured successfully with application info:', applicationInfo);
         }
       }
     } catch (error) {

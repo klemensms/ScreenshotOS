@@ -8,11 +8,12 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.json",
     "build:preload": "npx tsc --outDir ./dist src/preload.ts",
-    "build": "npm run build:renderer && npm run build:main && npm run build:preload",
+    "build": "npm run build:renderer && npm run build:main && npm run build:preload && npm run test:files",
     "start": "npm run build && npx electron ./dist/main.js",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "test": "jest"
+    "test": "jest",
+    "test:files": "node test-file-loading.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +22,7 @@
   "dependencies": {
     "@emnapi/runtime": "^1.4.3",
     "@types/react-window": "^1.8.8",
+    "active-win": "^8.2.1",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -32,6 +34,7 @@
     "react-window": "^1.8.11",
     "screenshot-desktop": "^1.15.1",
     "tailwind-merge": "^3.3.1",
+    "tesseract.js": "^6.0.1",
     "typescript": "^5.8.3"
   },
   "devDependencies": {

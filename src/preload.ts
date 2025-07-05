@@ -9,6 +9,8 @@ interface ElectronAPI {
   logFromRenderer: (level: string, message: string, error?: any, extra?: any) => Promise<void>;
   onNewScreenshot: (callback: (data: any) => void) => void;
   removeNewScreenshotListener: (callback: (data: any) => void) => void;
+  onOCRCompleted: (callback: (data: { imagePath: string; ocrText: string; ocrCompleted: boolean }) => void) => void;
+  removeOCRCompletedListener: (callback: (data: any) => void) => void;
 }
 
 // Expose protected methods that allow the renderer process to use IPC
@@ -56,7 +58,11 @@ contextBridge.exposeInMainWorld('electron', {
       'file-restore-screenshot',
       'file-get-recently-deleted',
       'file-cleanup-orphaned-sidecars',
-      'file-get-statistics'
+      'file-get-statistics',
+      'ocr-get-status',
+      'ocr-queue-for-processing',
+      'ocr-get-queue-size',
+      'ocr-is-processing'
     ];
     
     if (validChannels.includes(channel)) {
@@ -88,6 +94,12 @@ contextBridge.exposeInMainWorld('electron', {
   },
   removeNewScreenshotListener: (callback: (data: any) => void) => {
     ipcRenderer.removeListener('new-screenshot-created', callback);
+  },
+  onOCRCompleted: (callback: (data: { imagePath: string; ocrText: string; ocrCompleted: boolean }) => void) => {
+    ipcRenderer.on('ocr-completed', (event, data) => callback(data));
+  },
+  removeOCRCompletedListener: (callback: (data: any) => void) => {
+    ipcRenderer.removeListener('ocr-completed', callback);
   }
 } as ElectronAPI);
 

@@ -67,7 +67,8 @@ class SidecarManager {
                 notes,
                 annotations,
                 editHistory: [],
-                ocrText: ''
+                ocrText: '',
+                ocrCompleted: false
             };
             const sidecarPath = this.getSidecarPath(imagePath);
             await fs_1.default.promises.writeFile(sidecarPath, JSON.stringify(sidecarData, null, 2), 'utf8');

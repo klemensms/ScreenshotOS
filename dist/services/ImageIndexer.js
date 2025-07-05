@@ -8,6 +8,7 @@ const fs_1 = require("fs");
 const path_1 = __importDefault(require("path"));
 const events_1 = require("events");
 const electron_1 = require("electron");
+const ocr_service_1 = require("../utils/ocr-service");
 class ImageIndexer extends events_1.EventEmitter {
     constructor() {
         super();
@@ -218,6 +219,23 @@ class ImageIndexer extends events_1.EventEmitter {
             this.index.images.set(fileId, indexedImage);
             this.updateSearchIndex(indexedImage);
             this.emit('imageIndexed', indexedImage);
+            // Queue for OCR processing if not already completed
+            const sidecarPath = `${filePath}.screenshotos.json`;
+            try {
+                const sidecarData = await fs_1.promises.readFile(sidecarPath, 'utf-8');
+                const metadata = JSON.parse(sidecarData);
+                if (!metadata.ocrCompleted) {
+                    ocr_service_1.ocrService.queueForOCR(filePath).catch((error) => {
+                        console.warn(`📁 [INDEXER] Failed to queue ${filePath} for OCR:`, error);
+                    });
+                }
+            }
+            catch (error) {
+                // No sidecar exists, queue for OCR
+                ocr_service_1.ocrService.queueForOCR(filePath).catch((error) => {
+                    console.warn(`📁 [INDEXER] Failed to queue ${filePath} for OCR:`, error);
+                });
+            }
             // Schedule save to persistent storage
             this.scheduleSave();
         }

@@ -73,6 +73,7 @@ export interface SidecarData {
   annotations: SidecarAnnotation[];
   editHistory: SidecarEditOperation[];
   ocrText?: string;
+  ocrCompleted?: boolean;
   isArchived?: boolean;
   archivedAt?: string;
   archivedFromPath?: string;
@@ -148,7 +149,8 @@ class SidecarManager {
         notes,
         annotations,
         editHistory: [],
-        ocrText: ''
+        ocrText: '',
+        ocrCompleted: false
       };
 
       const sidecarPath = this.getSidecarPath(imagePath);
@@ -203,7 +205,7 @@ class SidecarManager {
    */
   async updateSidecarFile(
     imagePath: string,
-    updates: Partial<Pick<SidecarData, 'tags' | 'notes' | 'annotations' | 'ocrText' | 'isArchived' | 'archivedAt' | 'archivedFromPath'>>
+    updates: Partial<Pick<SidecarData, 'tags' | 'notes' | 'annotations' | 'ocrText' | 'ocrCompleted' | 'isArchived' | 'archivedAt' | 'archivedFromPath'>>
   ): Promise<boolean> {
     try {
       const sidecarData = await this.loadSidecarFile(imagePath);

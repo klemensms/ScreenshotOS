@@ -11,6 +11,8 @@ import { sidecarManager, SidecarMetadata, SidecarAnnotation } from './utils/side
 import { ImageIndexer } from './services/ImageIndexer';
 import { ThumbnailCache } from './services/ThumbnailCache';
 import { fileManager } from './services/FileManager';
+import { ocrService } from './utils/ocr-service';
+import activeWin from 'active-win';
 
 // Get screenshot save directory from config
 let screenshotSaveDir = loadStorageConfig().saveDirectory;
@@ -27,6 +29,62 @@ let thumbnailCache: ThumbnailCache | null = null;
 // Ensure the save directory exists
 function ensureSaveDirectoryExists() {
   screenshotSaveDir = ensureSaveDirectory(screenshotSaveDir);
+}
+
+// Get current application information for metadata
+async function getCurrentApplicationInfo(): Promise<{
+  name: string;
+  bundleId?: string;
+  version?: string;
+  windowTitle?: string;
+}> {
+  try {
+    console.log('🔍 [APP_INFO] Getting current application info...');
+    
+    const info = await activeWin({
+      screenRecordingPermission: true,
+      accessibilityPermission: false
+    });
+    
+    console.log('🔍 [APP_INFO] ActiveWin result:', {
+      hasInfo: !!info,
+      hasOwner: info?.owner ? true : false,
+      ownerName: info?.owner?.name,
+      bundleId: info?.owner && 'bundleId' in info.owner ? info.owner.bundleId : undefined,
+      windowTitle: info?.title
+    });
+    
+    if (info && info.owner) {
+      const result = {
+        name: info.owner.name,
+        bundleId: 'bundleId' in info.owner ? info.owner.bundleId : undefined,
+        version: undefined, // not available from active-win
+        windowTitle: info.title
+      };
+      
+      // Check if we detected the Electron app itself
+      if (result.bundleId === 'com.github.Electron' || result.name === 'Electron') {
+        console.warn('⚠️ [APP_INFO] Detected Electron app - this may be incorrect timing');
+        console.warn('⚠️ [APP_INFO] Full info:', result);
+      }
+      
+      console.log('✅ [APP_INFO] Successfully detected application:', result);
+      return result;
+    }
+  } catch (error) {
+    console.warn('❌ [APP_INFO] Failed to get active application info:', error);
+  }
+  
+  // Fallback to system info
+  const fallback = {
+    name: 'System',
+    bundleId: 'system',
+    version: '1.0',
+    windowTitle: undefined
+  };
+  
+  console.log('🔄 [APP_INFO] Using fallback application info:', fallback);
+  return fallback;
 }
 
 // Generate a filename based on timestamp
@@ -64,6 +122,11 @@ async function saveScreenshot(imgBuffer: Buffer): Promise<string> {
           logger.warn('main', 'Failed to add image to index', error);
         });
       }
+      
+      // Queue for OCR processing
+      ocrService.queueForOCR(filePath).catch((error) => {
+        logger.warn('main', 'Failed to queue image for OCR', error);
+      });
       
       resolve(filePath);
     });
@@ -144,6 +207,11 @@ async function triggerFullScreenCapture(): Promise<void> {
   try {
     console.time('shortcut-fullscreen-capture');
     
+    // IMPORTANT: Capture application info FIRST, before any screenshot operations
+    // This ensures we get the actual target app instead of the Electron app
+    const applicationInfo = await getCurrentApplicationInfo();
+    console.log('🎯 [FULLSCREEN] Captured application info before screenshot:', applicationInfo);
+    
     // Use screenshot-desktop which utilizes native macOS Core Graphics APIs
     const imgBuffer = await screenshot({ format: 'png' });
     
@@ -167,11 +235,7 @@ async function triggerFullScreenCapture(): Promise<void> {
       const metadata: SidecarMetadata = {
         captureTimestamp: new Date().toISOString(),
         captureMethod: 'fullscreen',
-        applicationInfo: {
-          name: 'System',
-          version: '1.0',
-          bundleId: 'system'
-        },
+        applicationInfo,
         screenInfo: {
           displayId: primaryDisplay.id.toString(),
           resolution: {
@@ -212,6 +276,11 @@ async function triggerFullScreenCapture(): Promise<void> {
 async function triggerAreaCapture(): Promise<void> {
   try {
     console.time('shortcut-area-capture');
+    
+    // IMPORTANT: Capture application info FIRST, before showing any overlay
+    // This ensures we get the actual target app instead of the Electron app
+    const applicationInfo = await getCurrentApplicationInfo();
+    console.log('🎯 [AREA] Captured application info before overlay:', applicationInfo);
     
     // Show overlay and get area
     const area = await selectAreaOnScreen();
@@ -279,11 +348,7 @@ async function triggerAreaCapture(): Promise<void> {
         const metadata: SidecarMetadata = {
           captureTimestamp: new Date().toISOString(),
           captureMethod: 'area',
-          applicationInfo: {
-            name: 'System',
-            version: '1.0',
-            bundleId: 'system'
-          },
+          applicationInfo,
           screenInfo: {
             displayId: targetDisplay.id.toString(),
             resolution: {
@@ -433,6 +498,9 @@ app.on('will-quit', async (event) => {
       await imageIndexer.shutdown();
     }
     
+    // Cleanup OCR service
+    await ocrService.cleanup();
+    
     // Thumbnail cache doesn't need special cleanup, but we could add it here
     
     console.log('🏁 [MAIN] Cleanup completed, quitting app');
@@ -448,6 +516,11 @@ app.on('will-quit', async (event) => {
 ipcMain.handle('capture-fullscreen', async () => {
   try {
     console.time('screenshot-capture');
+    
+    // IMPORTANT: Capture application info FIRST, before any screenshot operations
+    // This ensures we get the actual target app instead of the Electron app
+    const applicationInfo = await getCurrentApplicationInfo();
+    console.log('🎯 [IPC_FULLSCREEN] Captured application info before screenshot:', applicationInfo);
     
     // Use screenshot-desktop which utilizes native macOS Core Graphics APIs
     const imgBuffer = await screenshot({ format: 'png' });
@@ -467,6 +540,43 @@ ipcMain.handle('capture-fullscreen', async () => {
       console.log('Screenshot copied to clipboard successfully');
     } else {
       console.warn('Screenshot copied to clipboard failed');
+    }
+    
+    // Create sidecar file for the new fullscreen screenshot
+    try {
+      const allDisplays = screen.getAllDisplays();
+      const primaryDisplay = screen.getPrimaryDisplay();
+      
+      const metadata: SidecarMetadata = {
+        captureTimestamp: new Date().toISOString(),
+        captureMethod: 'fullscreen',
+        applicationInfo,
+        screenInfo: {
+          displayId: primaryDisplay.id.toString(),
+          resolution: {
+            width: primaryDisplay.bounds.width,
+            height: primaryDisplay.bounds.height
+          },
+          scaleFactor: primaryDisplay.scaleFactor
+        },
+        deviceInfo: {
+          osVersion: process.getSystemVersion()
+        }
+      };
+
+      await sidecarManager.createSidecarFile(filePath, metadata, [], '', []);
+      console.log('Sidecar file created for IPC fullscreen capture:', filePath);
+      
+      // Notify all renderer windows about the new screenshot
+      BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('new-screenshot-created', {
+          filePath,
+          metadata,
+          method: 'fullscreen'
+        });
+      });
+    } catch (sidecarError) {
+      console.error('Failed to create sidecar file for IPC fullscreen capture:', sidecarError);
     }
     
     // Convert to base64 for return
@@ -980,10 +1090,24 @@ async function selectAreaOnScreen(): Promise<{ x: number; y: number; width: numb
 ipcMain.handle('trigger-area-overlay', async () => {
   try {
     console.log('Trigger area overlay requested');
+    
+    // IMPORTANT: Capture application info BEFORE showing overlay (while target app is still active)
+    const applicationInfo = await getCurrentApplicationInfo();
+    console.log('🎯 [OVERLAY] Captured application info before overlay:', applicationInfo);
+    
     // Show overlay and get area
     const area = await selectAreaOnScreen();
     console.log('Area selection completed with result:', area);
-    return area;
+    
+    if (area) {
+      // Return both area and application info together
+      return {
+        ...area,
+        applicationInfo
+      };
+    }
+    
+    return null;
   } catch (error) {
     console.error('Area overlay failed:', error);
     return null;
@@ -993,7 +1117,7 @@ ipcMain.handle('trigger-area-overlay', async () => {
 // Update the 'capture-area' handler to only crop and save, given area
 ipcMain.handle('capture-area', async (event, params) => {
   try {
-    const { area, displayId: targetDisplayId } = params;
+    const { area, displayId: targetDisplayId, applicationInfo } = params;
     if (!area || typeof area.x !== 'number' || typeof area.y !== 'number' || typeof area.width !== 'number' || typeof area.height !== 'number') {
       throw new Error('Invalid area coordinates');
     }
@@ -1068,6 +1192,59 @@ ipcMain.handle('capture-area', async (event, params) => {
       // Copy to clipboard
       const clipboardSuccess = copyToClipboard(croppedBuffer);
       console.log('Clipboard copy success:', clipboardSuccess);
+      
+      // Create sidecar file for the new area screenshot
+      try {
+        const allDisplays = screen.getAllDisplays();
+        const targetDisplay = allDisplays.find(d => d.id === targetDisplayId) || screen.getPrimaryDisplay();
+        
+        const metadata: SidecarMetadata = {
+          captureTimestamp: new Date().toISOString(),
+          captureMethod: 'area',
+          applicationInfo: applicationInfo || {
+            name: 'Unknown',
+            version: '1.0',
+            bundleId: 'unknown'
+          },
+          screenInfo: {
+            displayId: targetDisplay.id.toString(),
+            resolution: {
+              width: targetDisplay.bounds.width,
+              height: targetDisplay.bounds.height
+            },
+            scaleFactor: targetDisplay.scaleFactor
+          },
+          deviceInfo: {
+            osVersion: process.getSystemVersion()
+          },
+          captureArea: {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height
+          }
+        };
+
+        await sidecarManager.createSidecarFile(filePath, metadata, [], '', []);
+        console.log('Sidecar file created for area capture via UI:', filePath);
+        
+        // Notify all renderer windows about the new screenshot
+        BrowserWindow.getAllWindows().forEach(window => {
+          window.webContents.send('new-screenshot-created', {
+            filePath,
+            metadata,
+            method: 'area',
+            area: {
+              x: area.x,
+              y: area.y,
+              width: area.width,
+              height: area.height
+            }
+          });
+        });
+      } catch (sidecarError) {
+        console.error('Failed to create sidecar file for area capture via UI:', sidecarError);
+      }
       
       // Convert to base64 for return
       const base64Image = croppedBuffer.toString('base64');
@@ -1624,6 +1801,47 @@ ipcMain.handle('read-image-file', async (event, filePath: string) => {
     console.error(`❌ [IPC] ${errorMsg} for file: ${filePath}`, error);
     logger.error('main', 'Failed to read image file', error as Error);
     return { success: false, error: errorMsg };
+  }
+});
+
+// OCR IPC handlers
+ipcMain.handle('ocr-get-status', async (event, imagePath: string) => {
+  try {
+    const status = await ocrService.getOCRStatus(imagePath);
+    return { success: true, data: status };
+  } catch (error) {
+    logger.error('main', 'Failed to get OCR status', error as Error);
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle('ocr-queue-for-processing', async (event, imagePath: string) => {
+  try {
+    await ocrService.queueForOCR(imagePath);
+    return { success: true };
+  } catch (error) {
+    logger.error('main', 'Failed to queue for OCR', error as Error);
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle('ocr-get-queue-size', async (event) => {
+  try {
+    const queueSize = ocrService.getQueueSize();
+    return { success: true, data: queueSize };
+  } catch (error) {
+    logger.error('main', 'Failed to get OCR queue size', error as Error);
+    return { success: false, error: (error as Error).message };
+  }
+});
+
+ipcMain.handle('ocr-is-processing', async (event) => {
+  try {
+    const isProcessing = ocrService.isCurrentlyProcessing();
+    return { success: true, data: isProcessing };
+  } catch (error) {
+    logger.error('main', 'Failed to check OCR processing status', error as Error);
+    return { success: false, error: (error as Error).message };
   }
 });
 

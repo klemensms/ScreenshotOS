@@ -42,15 +42,19 @@ export function FileMetaData() {
     dimensions: `${currentScreenshot.dimensions?.width || 'Unknown'} x ${currentScreenshot.dimensions?.height || 'Unknown'}`,
     createdDate: currentScreenshot.timestamp.toLocaleString(),
     modifiedDate: currentScreenshot.timestamp.toLocaleString(),
-    application: 'ScreenshotOS',
-    windowTitle: currentScreenshot.name,
+    application: currentScreenshot.applicationInfo?.name || 'Unknown',
+    windowTitle: currentScreenshot.applicationInfo?.windowTitle || currentScreenshot.name,
+    bundleId: currentScreenshot.applicationInfo?.bundleId || 'Unknown',
     format: 'PNG',
     colorDepth: '24-bit',
     dpi: '72 x 72',
     compression: 'None',
-    ocrText: currentScreenshot.ocrText || 'OCR not yet implemented',
+    ocrText: currentScreenshot.ocrText || '',
+    ocrCompleted: currentScreenshot.ocrCompleted || false,
     appliedTags: currentScreenshot.tags || [],
-    captureMethod: (currentScreenshot.dimensions?.width || 0) === 0 ? 'Full Screen' : 'Area Selection',
+    captureMethod: currentScreenshot.captureMethod === 'fullscreen' ? 'Full Screen' : 
+                  currentScreenshot.captureMethod === 'area' ? 'Area Selection' : 
+                  currentScreenshot.captureMethod === 'window' ? 'Window Selection' : 'Unknown',
     screenshotType: 'Screenshot'
   };
 
@@ -150,6 +154,11 @@ export function FileMetaData() {
             </div>
             
             <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-600 flex-shrink-0">Bundle ID:</span>
+              <span className="text-gray-800 break-words text-right">{metadata.bundleId}</span>
+            </div>
+            
+            <div className="flex justify-between items-start gap-2">
               <span className="text-gray-600 flex-shrink-0">Capture Method:</span>
               <span className="text-gray-800 break-words text-right">{metadata.captureMethod}</span>
             </div>
@@ -208,18 +217,31 @@ export function FileMetaData() {
             <h4 className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
               <Palette className="w-3 h-3" />
               OCR Extracted Text
+              {!metadata.ocrCompleted && (
+                <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse ml-1" title="OCR processing..." />
+              )}
             </h4>
-            <button
-              onClick={() => copyToClipboard(metadata.ocrText)}
-              className="p-1 hover:bg-gray-200 rounded"
-              title="Copy OCR text"
-            >
-              <Copy className="w-3 h-3 text-gray-500" />
-            </button>
+            {metadata.ocrText && (
+              <button
+                onClick={() => copyToClipboard(metadata.ocrText)}
+                className="p-1 hover:bg-gray-200 rounded"
+                title="Copy OCR text"
+              >
+                <Copy className="w-3 h-3 text-gray-500" />
+              </button>
+            )}
           </div>
           
           <div className="bg-gray-50 border border-gray-200 rounded p-2 max-h-40 overflow-auto">
-            <pre className="text-xs text-gray-800 whitespace-pre-wrap">{metadata.ocrText}</pre>
+            {metadata.ocrCompleted ? (
+              metadata.ocrText ? (
+                <pre className="text-xs text-gray-800 whitespace-pre-wrap">{metadata.ocrText}</pre>
+              ) : (
+                <p className="text-xs text-gray-500 italic">No text detected in image</p>
+              )
+            ) : (
+              <p className="text-xs text-gray-500 italic">OCR processing in progress...</p>
+            )}
           </div>
         </div>
 

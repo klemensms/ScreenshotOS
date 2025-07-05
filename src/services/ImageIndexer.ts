@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 import { app } from 'electron';
+import { ocrService } from '../utils/ocr-service';
 
 export interface IndexedImage {
   id: string;
@@ -264,6 +265,23 @@ export class ImageIndexer extends EventEmitter {
       this.updateSearchIndex(indexedImage);
 
       this.emit('imageIndexed', indexedImage);
+      
+      // Queue for OCR processing if not already completed
+      const sidecarPath = `${filePath}.screenshotos.json`;
+      try {
+        const sidecarData = await fs.readFile(sidecarPath, 'utf-8');
+        const metadata = JSON.parse(sidecarData);
+        if (!metadata.ocrCompleted) {
+          ocrService.queueForOCR(filePath).catch((error) => {
+            console.warn(`📁 [INDEXER] Failed to queue ${filePath} for OCR:`, error);
+          });
+        }
+      } catch (error) {
+        // No sidecar exists, queue for OCR
+        ocrService.queueForOCR(filePath).catch((error) => {
+          console.warn(`📁 [INDEXER] Failed to queue ${filePath} for OCR:`, error);
+        });
+      }
       
       // Schedule save to persistent storage
       this.scheduleSave();
