@@ -59,6 +59,16 @@ npm install
 npm start
 ```
 
+### Quick Test
+
+```bash
+# Navigate to the project directory
+cd /Users/klemensstelk/Repo/ScreenshotOS
+
+# Build and run the application
+npm start
+```
+
 ### Building
 
 ```bash

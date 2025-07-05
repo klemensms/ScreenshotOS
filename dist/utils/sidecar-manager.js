@@ -247,10 +247,15 @@ class SidecarManager {
                     }
                 }
             }
-            // Sort by modification time (newest first) and limit to reasonable number
-            const MAX_FILES_TO_SCAN = 50; // Process only the 50 most recent files
+            // Sort by creation time (newest first) and limit to reasonable number
+            const MAX_FILES_TO_SCAN = 500; // Increased limit to support better pagination
             const sortedFiles = imageFiles
-                .sort((a, b) => b.stat.mtime.getTime() - a.stat.mtime.getTime())
+                .sort((a, b) => {
+                // Use birthtime (creation time) instead of mtime to maintain chronological order
+                const timeA = a.stat.birthtime ? a.stat.birthtime.getTime() : a.stat.mtime.getTime();
+                const timeB = b.stat.birthtime ? b.stat.birthtime.getTime() : b.stat.mtime.getTime();
+                return timeB - timeA; // Newest first
+            })
                 .slice(0, MAX_FILES_TO_SCAN);
             console.log(`📁 [SCAN] Found ${imageFiles.length} total images, processing ${sortedFiles.length} most recent files`);
             const results = [];

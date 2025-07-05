@@ -1372,7 +1372,9 @@ electron_1.ipcMain.handle('file-stats', async (event, filePath) => {
             success: true,
             size: stats.size,
             created: stats.birthtime,
+            birthtime: stats.birthtime, // Include both for compatibility
             modified: stats.mtime,
+            mtime: stats.mtime, // Include both for compatibility
             isFile: stats.isFile(),
             isDirectory: stats.isDirectory()
         };
@@ -1419,8 +1421,20 @@ electron_1.ipcMain.handle('read-image-file', async (event, filePath) => {
         console.log(`📖 [IPC] Converting buffer to base64...`);
         const base64 = buffer.toString('base64');
         const base64SizeKB = Math.round(base64.length / 1024);
+        // Get actual image dimensions using Electron's nativeImage
+        let dimensions = { width: 1920, height: 1080 }; // Default fallback
+        try {
+            const { nativeImage } = require('electron');
+            const image = nativeImage.createFromBuffer(buffer);
+            const size = image.getSize();
+            dimensions = { width: size.width, height: size.height };
+            console.log(`📐 [IPC] Image dimensions: ${dimensions.width}x${dimensions.height}`);
+        }
+        catch (dimError) {
+            console.warn(`⚠️ [IPC] Could not get image dimensions: ${dimError.message}`);
+        }
         console.log(`✅ [IPC] Successfully read image file: ${filePath} (${base64SizeKB}KB base64)`);
-        return { success: true, base64 };
+        return { success: true, base64, dimensions };
     }
     catch (error) {
         const errorMsg = `Failed to read image file: ${error.message}`;

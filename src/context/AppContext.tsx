@@ -125,6 +125,10 @@ interface AppProviderProps {
   children: ReactNode;
 }
 
+// Constants for file loading
+const MAX_FILE_SIZE_MB = 50; // Maximum file size in MB to load
+const IMAGE_LOAD_TIMEOUT_MS = 15000; // Timeout for loading individual images
+
 /**
  * Parse timestamp from screenshot filename patterns
  * Supports formats like: screenshot_2025-06-30-16-04-15.png
@@ -133,8 +137,8 @@ function parseTimestampFromFilename(filePath: string): Date | null {
   try {
     const filename = filePath.split('/').pop() || '';
     
-    // Match pattern: screenshot_YYYY-MM-DD-HH-MM-SS.png
-    const timestampMatch = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+    // Match pattern: screenshot_YYYY-MM-DD_HH-MM-SS.png (note the underscore between date and time)
+    const timestampMatch = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
     
     if (timestampMatch) {
       const [, year, month, day, hour, minute, second] = timestampMatch;
@@ -185,7 +189,7 @@ function parseTimestampFromFilename(filePath: string): Date | null {
 /**
  * Create a basic screenshot object for images without sidecar files
  */
-function createBasicScreenshot(imagePath: string, base64Image: string, index: number, fileStats?: any): Screenshot {
+function createBasicScreenshot(imagePath: string, base64Image: string, index: number, fileStats?: any, dimensions?: { width: number; height: number }): Screenshot {
   const filename = imagePath.split('/').pop() || 'Unknown';
   
   // Smart timestamp detection - priority order:
@@ -196,11 +200,14 @@ function createBasicScreenshot(imagePath: string, base64Image: string, index: nu
   let timestamp = parseTimestampFromFilename(imagePath);
   
   if (!timestamp && fileStats) {
-    if (fileStats.birthtime) {
+    if (fileStats.created) {
+      timestamp = new Date(fileStats.created);
+      console.log(`📅 [TIMESTAMP] Using file birthtime for ${filename}:`, timestamp.toLocaleString());
+    } else if (fileStats.birthtime) {
       timestamp = new Date(fileStats.birthtime);
       console.log(`📅 [TIMESTAMP] Using file birthtime for ${filename}:`, timestamp.toLocaleString());
-    } else if (fileStats.mtime) {
-      timestamp = new Date(fileStats.mtime);
+    } else if (fileStats.mtime || fileStats.modified) {
+      timestamp = new Date(fileStats.mtime || fileStats.modified);
       console.log(`📅 [TIMESTAMP] Using file mtime for ${filename}:`, timestamp.toLocaleString());
     }
   }
@@ -217,8 +224,8 @@ function createBasicScreenshot(imagePath: string, base64Image: string, index: nu
     filePath: imagePath,
     timestamp,
     dimensions: {
-      width: 1920, // Default dimensions - will be updated when image loads
-      height: 1080
+      width: dimensions?.width || 1920, // Use actual dimensions if provided, else default
+      height: dimensions?.height || 1080
     },
     tags: [],
     notes: '',
@@ -382,13 +389,7 @@ export function AppProvider({ children }: AppProviderProps) {
       
       if (result.success && result.imageFiles) {
         // Pre-filter files by size to prevent memory overload
-        const MAX_FILE_SIZE_MB = 5; // Further reduced to 5MB limit per file 
-        const MAX_FILES_TO_LOAD = 8; // Further reduced to 8 files for better stability
-        
-        // Store all available files for infinite scroll
-        setAllAvailableFiles(result.imageFiles);
-        setHasMoreFiles(result.imageFiles.length > MAX_FILES_TO_LOAD);
-        setLoadedFileOffset(0); // Reset offset for initial load
+        const MAX_FILES_TO_LOAD = 20; // Initial load of 20 files, infinite scroll loads the rest
         
         const loadedScreenshots: Screenshot[] = [];
         
@@ -443,16 +444,31 @@ export function AppProvider({ children }: AppProviderProps) {
         
         // Limit to maximum number of files
         const filesToLoad = validFiles.slice(0, MAX_FILES_TO_LOAD);
+        const deferredFiles = validFiles.slice(MAX_FILES_TO_LOAD);
         
         const totalImagesWithSidecars = filesToLoad.filter(item => item.hasSidecar).length;
         const totalImagesWithoutSidecars = filesToLoad.length - totalImagesWithSidecars;
         
         console.log(`🔄 [LOADING] File filtering results:`);
+        console.log(`    - ${result.imageFiles.length} total image files found`);
         console.log(`    - ${validFiles.length} files passed size filter (≤${MAX_FILE_SIZE_MB}MB)`);
         console.log(`    - ${rejectedFiles.length} files rejected (too large or errors)`);
+        console.log(`    - ${filesToLoad.length} files loading immediately (smallest files first)`);
+        console.log(`    - ${deferredFiles.length} files deferred for infinite scroll`);
         console.log(`    - ${totalImagesWithSidecars} with sidecar files`);
         console.log(`    - ${totalImagesWithoutSidecars} without sidecar files`);
-        console.log(`    - Loading first ${filesToLoad.length} images (smallest files first)`);
+        
+        // Log details of rejected files for debugging
+        if (rejectedFiles.length > 0) {
+          console.warn(`⚠️ [LOADING] ${rejectedFiles.length} files were rejected:`);
+          rejectedFiles.slice(0, 10).forEach((rejected, idx) => {
+            const filename = rejected.imagePath.split('/').pop();
+            console.warn(`    ${idx + 1}. ${filename}: ${rejected.reason} (${rejected.fileSize.toFixed(1)}MB)`);
+          });
+          if (rejectedFiles.length > 10) {
+            console.warn(`    ... and ${rejectedFiles.length - 10} more files`);
+          }
+        }
         
         // Process files with async batching to prevent blocking
         const processImage = async (imageFileInfo: any, index: number, abortSignal: AbortSignal): Promise<Screenshot | null> => {
@@ -463,17 +479,18 @@ export function AppProvider({ children }: AppProviderProps) {
           try {
             console.log(`🔄 [LOADING] Processing image ${index + 1}/${filesToLoad.length}:`, imageFileInfo.imagePath);
             
-            // Load image data with timeout (reduced to 5s for faster failure)
+            // Load image data with timeout
             let imageData;
             try {
               imageData = await Promise.race([
                 window.electron.invoke('read-image-file', imageFileInfo.imagePath),
                 new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Image loading timeout (5s)')), 5000)
+                  setTimeout(() => reject(new Error(`Image loading timeout (${IMAGE_LOAD_TIMEOUT_MS / 1000}s)`)), IMAGE_LOAD_TIMEOUT_MS)
                 )
               ]);
             } catch (timeoutError) {
-              console.error(`❌ [LOADING] Image loading failed/timeout for:`, imageFileInfo.imagePath);
+              const filename = imageFileInfo.imagePath.split('/').pop();
+              console.error(`❌ [LOADING] Image loading failed/timeout for: ${filename} (${imageFileInfo.fileSize.toFixed(1)}MB)`);
               return null;
             }
             
@@ -518,10 +535,10 @@ export function AppProvider({ children }: AppProviderProps) {
                   hasSidecar: true
                 };
               } else {
-                screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
+                screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
               }
             } else {
-              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
+              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
             }
             
             console.log(`✅ [LOADING] Successfully created screenshot object ${index + 1}:`, screenshot.name);
@@ -572,22 +589,41 @@ export function AppProvider({ children }: AppProviderProps) {
           abortController.abort();
         }
         
-        console.log(`🔄 [LOADING] Sorting ${loadedScreenshots.length} screenshots...`);
-        console.log(`📝 [DEBUG] Loaded ${loadedScreenshots.length} screenshots successfully`);
+        // Summary of loading results
+        const failedToLoad = filesToLoad.length - loadedScreenshots.length;
+        console.log(`🔄 [LOADING] Loading results summary:`);
+        console.log(`    - ${loadedScreenshots.length}/${filesToLoad.length} files loaded successfully`);
+        if (failedToLoad > 0) {
+          console.warn(`    - ${failedToLoad} files failed to load (timeouts, read errors, or invalid data)`);
+        }
         
         // Final memory check
         if (performance.memory) {
           const finalMemory = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
-          console.log(`🔄 [LOADING] Final memory usage: ${finalMemory}MB`);
+          console.log(`    - Final memory usage: ${finalMemory}MB`);
         }
         
-        // Sort by timestamp (newest first)
-        loadedScreenshots.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        // Sort by timestamp (newest first) - ensure consistent ordering
+        loadedScreenshots.sort((a, b) => {
+          // For consistent ordering, use timestamp which comes from filename or file creation time
+          return b.timestamp.getTime() - a.timestamp.getTime();
+        });
         
         console.log(`🔄 [LOADING] Setting ${loadedScreenshots.length} screenshots in state...`);
         
+        // Store valid files for infinite scroll and set up offset tracking
+        setAllAvailableFiles(validFiles); // Store filtered valid files, not raw files
+        const actualFilesToLoad = Math.min(filesToLoad.length, MAX_FILES_TO_LOAD);
+        const hasMore = validFiles.length > actualFilesToLoad;
+        setHasMoreFiles(hasMore);
+        setLoadedFileOffset(actualFilesToLoad); // Track how many files we've actually loaded
+        
+        console.log(`🔄 [LOADING] Infinite scroll setup:`);
+        console.log(`    - Total valid files: ${validFiles.length}`);
+        console.log(`    - Files loaded this batch: ${actualFilesToLoad}`);
+        console.log(`    - Has more files for infinite scroll: ${hasMore}`);
+        
         setScreenshots(loadedScreenshots);
-        setLoadedFileOffset(filesToLoad.length); // Update offset for next load
         
         if (loadedScreenshots.length > 0) {
           console.log(`🔄 [LOADING] Setting current screenshot to:`, loadedScreenshots[0].name);
@@ -608,6 +644,12 @@ export function AppProvider({ children }: AppProviderProps) {
         console.log(`✅ [LOADING] Successfully loaded ${loadedScreenshots.length} screenshots in ${loadTime}ms`);
         console.log('✅ [LOADING] Final memory usage:', 
           performance.memory ? `${Math.round(performance.memory.usedJSHeapSize / 1024 / 1024)}MB` : 'N/A');
+        
+        // Additional summary if there were issues
+        if (rejectedFiles.length > 0 || failedToLoad > 0) {
+          const totalSkipped = rejectedFiles.length + failedToLoad;
+          console.warn(`📊 [LOADING] Summary: ${totalSkipped} total files skipped (${rejectedFiles.length} rejected by filter, ${failedToLoad} failed to load)`);
+        }
       } else {
         console.log('ℹ️ [LOADING] No images found or scan failed');
         // Clear timeout even if no images found
@@ -637,51 +679,33 @@ export function AppProvider({ children }: AppProviderProps) {
     try {
       console.log(`🔄 [LOAD_MORE] Loading more screenshots starting from offset ${loadedFileOffset}`);
       
-      const BATCH_SIZE = 16; // Increased batch size for better loading
-      const MAX_FILE_SIZE_MB = 5; // Match the main loading limits
+      const BATCH_SIZE = 20; // Match initial load size for consistency
       
-      // Get the next batch of files
+      // Get the next batch of files (already filtered from initial load)
       const nextBatch = allAvailableFiles.slice(loadedFileOffset, loadedFileOffset + BATCH_SIZE);
       
+      console.log(`🔄 [LOAD_MORE] Getting files from offset ${loadedFileOffset}, batch size ${BATCH_SIZE}`);
+      console.log(`🔄 [LOAD_MORE] Available files total: ${allAvailableFiles.length}, next batch: ${nextBatch.length}`);
+      
       if (nextBatch.length === 0) {
+        console.log(`ℹ️ [LOAD_MORE] No more files to load`);
         setHasMoreFiles(false);
         setIsLoadingMore(false);
         return;
       }
       
-      // Filter by file size similar to initial load
-      const validFiles: Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number, fileStats: any}> = [];
-      
-      for (const imageFile of nextBatch) {
-        try {
-          const fileStat = await window.electron.invoke('file-stats', imageFile.imagePath);
-          if (fileStat && fileStat.success) {
-            const fileSizeMB = fileStat.size / (1024 * 1024);
-            if (fileSizeMB <= MAX_FILE_SIZE_MB) {
-              validFiles.push({
-                ...imageFile,
-                fileSize: fileSizeMB,
-                fileStats: fileStat
-              });
-            }
-          }
-        } catch (error) {
-          console.warn(`⚠️ [LOAD_MORE] Error checking file: ${imageFile.imagePath}`, error);
-        }
-      }
-      
-      // Load the valid files
+      // Load the files (no need to re-filter, they're already validated)
       const newScreenshots: Screenshot[] = [];
       
-      for (let index = 0; index < validFiles.length; index++) {
-        const imageFileInfo = validFiles[index];
+      for (let index = 0; index < nextBatch.length; index++) {
+        const imageFileInfo = nextBatch[index];
         let imageData = null;
         
         try {
-          console.log(`🔄 [LOAD_MORE] Processing image ${index + 1}/${validFiles.length}:`, imageFileInfo.imagePath);
+          console.log(`🔄 [LOAD_MORE] Processing image ${index + 1}/${nextBatch.length}:`, imageFileInfo.imagePath);
           
-          // Load image data
-          imageData = await ipcWithTimeout('read-image-file', imageFileInfo.imagePath, 8000);
+          // Load image data with increased timeout for larger files
+          imageData = await ipcWithTimeout('read-image-file', imageFileInfo.imagePath, IMAGE_LOAD_TIMEOUT_MS);
           
           if (!imageData || !imageData.success || !imageData.base64) {
             console.warn(`⚠️ [LOAD_MORE] Invalid image data for:`, imageFileInfo.imagePath);
@@ -721,10 +745,10 @@ export function AppProvider({ children }: AppProviderProps) {
                 hasSidecar: true
               };
             } else {
-              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
+              screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
             }
           } else {
-            screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats);
+            screenshot = createBasicScreenshot(imageFileInfo.imagePath, imageData.base64, index, imageFileInfo.fileStats, imageData.dimensions);
           }
           
           newScreenshots.push(screenshot);
@@ -739,6 +763,12 @@ export function AppProvider({ children }: AppProviderProps) {
         setLoadedFileOffset(prev => prev + nextBatch.length);
         
         console.log(`✅ [LOAD_MORE] Loaded ${newScreenshots.length} additional screenshots`);
+      }
+      
+      // Log summary of what was loaded
+      const failedToLoad = nextBatch.length - newScreenshots.length;
+      if (failedToLoad > 0) {
+        console.warn(`⚠️ [LOAD_MORE] ${failedToLoad} files failed to load from batch`);
       }
       
       // Check if there are more files to load

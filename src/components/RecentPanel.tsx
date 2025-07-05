@@ -69,11 +69,12 @@ export function RecentPanel() {
     const target = e.currentTarget;
     const scrollPosition = target.scrollTop + target.clientHeight;
     const scrollHeight = target.scrollHeight;
+    const distanceFromBottom = scrollHeight - scrollPosition;
     
     // Load more when user is within 100px of the bottom
     if (scrollPosition >= scrollHeight - 100 && !isLoadingMore && hasMoreFiles) {
       debugLogger.log('RecentPanel', 'loadMoreScreenshots triggered', { scrollPosition, scrollHeight });
-      console.log('📜 [SCROLL] Loading more screenshots...');
+      console.log(`📜 [SCROLL] Triggering loadMoreScreenshots... (distance from bottom: ${distanceFromBottom}px)`);
       loadMoreScreenshots();
     }
   }, [isLoadingMore, hasMoreFiles, loadMoreScreenshots]);
