@@ -4,7 +4,7 @@ import path from 'path';
 import screenshot from 'screenshot-desktop';
 import fs from 'fs';
 import { homedir } from 'os';
-import { loadStorageConfig, ensureSaveDirectory, saveStorageConfig, ShortcutConfig } from './config/storage';
+import { loadStorageConfig, ensureSaveDirectory, saveStorageConfig, ShortcutConfig, loadPreviousArea, savePreviousArea } from './config/storage';
 import { cropImage } from './utils/jimp-native';
 import { logger } from './utils/logger';
 import { sidecarManager, SidecarMetadata, SidecarAnnotation } from './utils/sidecar-manager';
@@ -768,6 +768,17 @@ ipcMain.on('area-selection', (event, area) => {
       console.log('User cancelled area selection');
       areaSelectionResolver(null);
     } else if (area) {
+      // Save the new area selection to config (but only if it's a new selection, not reusing previous)
+      if (area.x !== undefined && area.y !== undefined && area.width !== undefined && area.height !== undefined) {
+        console.log('💾 Saving new area selection to config:', area);
+        const saveResult = savePreviousArea(area);
+        console.log('💾 Save result:', saveResult);
+        
+        // Verify it was saved
+        const verifyArea = loadPreviousArea();
+        console.log('💾 Verified saved area:', verifyArea);
+      }
+      
       // Pass through raw overlay coordinates - transformation will happen in capture functions
       console.log('Passing raw overlay area to capture function:', area);
       areaSelectionResolver(area);
@@ -1030,6 +1041,22 @@ async function selectAreaOnScreen(): Promise<{ x: number; y: number; width: numb
     allDisplays.forEach((display, index) => {
       console.log(`Creating overlay ${index + 1}/${totalDisplays} for display ${display.id}:`, display.bounds, 'workArea:', display.workArea);
       
+      // Get previous area for this display
+      const previousArea = loadPreviousArea();
+      console.log(`🔍 [OVERLAY_CREATE] Loading previous area for display ${display.id}:`, previousArea);
+      
+      // Only pass previous area if it matches this display
+      let areaToPass = null;
+      if (previousArea && previousArea.displayId === display.id) {
+        areaToPass = previousArea;
+        console.log(`🔍 [OVERLAY_CREATE] Previous area matches display ${display.id}, will show it`);
+      } else if (previousArea) {
+        console.log(`🔍 [OVERLAY_CREATE] Previous area is for different display (${previousArea.displayId} vs ${display.id}), not showing`);
+      }
+      
+      const previousAreaArg = areaToPass ? `--previous-area=${JSON.stringify(areaToPass)}` : '--previous-area=null';
+      console.log(`🔍 [OVERLAY_CREATE] Passing argument to display ${display.id}:`, previousAreaArg);
+      
       const overlayWindow = new BrowserWindow({
         width: display.workArea.width,
         height: display.workArea.height,
@@ -1046,7 +1073,7 @@ async function selectAreaOnScreen(): Promise<{ x: number; y: number; width: numb
           preload: path.join(__dirname, 'overlayPreload.js'),
           nodeIntegration: false,
           contextIsolation: true,
-          additionalArguments: [`--display-id=${display.id}`, `--display-bounds=${JSON.stringify(display.bounds)}`]
+          additionalArguments: [`--display-id=${display.id}`, `--display-bounds=${JSON.stringify(display.bounds)}`, previousAreaArg]
         },
         hasShadow: false,
         show: false, // Start hidden
@@ -1874,5 +1901,41 @@ ipcMain.handle('copy-screenshot-to-clipboard', async (event, data: { base64Image
     const errorMsg = `Error copying screenshot to clipboard: ${(error as Error).message}`;
     console.error(`❌ [IPC] ${errorMsg}`, error);
     return { success: false, error: errorMsg };
+  }
+});
+
+// Handle copying text to clipboard
+ipcMain.handle('copy-text-to-clipboard', async (event, text: string) => {
+  try {
+    console.log('🔄 [IPC] Copying text to clipboard');
+    
+    if (!text || typeof text !== 'string') {
+      const errorMsg = 'Invalid text provided';
+      console.error(`❌ [IPC] ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+
+    // Copy text to clipboard
+    clipboard.writeText(text);
+    
+    console.log('✅ [IPC] Text copied to clipboard successfully');
+    return { success: true };
+  } catch (error) {
+    const errorMsg = `Error copying text to clipboard: ${(error as Error).message}`;
+    console.error(`❌ [IPC] ${errorMsg}`, error);
+    return { success: false, error: errorMsg };
+  }
+});
+
+// Handle getting previous area selection
+ipcMain.on('get-previous-area', (event) => {
+  try {
+    console.log('📥 [IPC] Previous area requested from overlay');
+    const previousArea = loadPreviousArea();
+    console.log('📥 [IPC] Loaded previous area from config:', previousArea);
+    event.returnValue = previousArea;
+  } catch (error) {
+    console.error('❌ [IPC] Failed to get previous area:', error);
+    event.returnValue = null;
   }
 });

@@ -13,7 +13,10 @@
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "test": "jest",
-    "test:files": "node test-file-loading.js"
+    "test:files": "node test-file-loading.js",
+    "test:e2e": "playwright test --config=playwright-electron.config.js",
+    "test:e2e:headed": "playwright test --config=playwright-electron.config.js --headed",
+    "test:app": "node tests/e2e/electron-helper.js"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +42,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.27.0",
+    "@playwright/mcp": "^0.0.29",
+    "@playwright/test": "^1.53.2",
     "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/typography": "^0.5.16",
     "@types/jest": "^29.5.14",
@@ -53,6 +58,7 @@
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.1.0",
     "jest": "^29.7.0",
+    "playwright": "^1.53.2",
     "prettier": "^3.5.3",
     "tailwindcss": "^4.1.11",
     "ts-jest": "^29.3.4",

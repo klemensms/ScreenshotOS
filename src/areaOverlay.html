@@ -13,6 +13,13 @@
       background: rgba(76,175,80,0.15);
       pointer-events: none;
     }
+    #previousSelection {
+      position: absolute;
+      border: 2px dashed #FFC107;
+      background: rgba(255,193,7,0.1);
+      pointer-events: none;
+      z-index: 1;
+    }
     #hint {
       position: absolute;
       top: 10px;
@@ -29,6 +36,7 @@
 </head>
 <body>
   <div id="hint">Drag to select area</div>
+  <div id="previousSelection" style="display:none;"></div>
   <div id="selection" style="display:none;"></div>
   <script src="areaOverlay.js"></script>
 </body>

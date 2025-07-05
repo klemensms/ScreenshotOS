@@ -662,6 +662,15 @@ electron_1.ipcMain.on('area-selection', (event, area) => {
             areaSelectionResolver(null);
         }
         else if (area) {
+            // Save the new area selection to config (but only if it's a new selection, not reusing previous)
+            if (area.x !== undefined && area.y !== undefined && area.width !== undefined && area.height !== undefined) {
+                console.log('💾 Saving new area selection to config:', area);
+                const saveResult = (0, storage_1.savePreviousArea)(area);
+                console.log('💾 Save result:', saveResult);
+                // Verify it was saved
+                const verifyArea = (0, storage_1.loadPreviousArea)();
+                console.log('💾 Verified saved area:', verifyArea);
+            }
             // Pass through raw overlay coordinates - transformation will happen in capture functions
             console.log('Passing raw overlay area to capture function:', area);
             areaSelectionResolver(area);
@@ -886,6 +895,20 @@ async function selectAreaOnScreen() {
         const totalDisplays = allDisplays.length;
         allDisplays.forEach((display, index) => {
             console.log(`Creating overlay ${index + 1}/${totalDisplays} for display ${display.id}:`, display.bounds, 'workArea:', display.workArea);
+            // Get previous area for this display
+            const previousArea = (0, storage_1.loadPreviousArea)();
+            console.log(`🔍 [OVERLAY_CREATE] Loading previous area for display ${display.id}:`, previousArea);
+            // Only pass previous area if it matches this display
+            let areaToPass = null;
+            if (previousArea && previousArea.displayId === display.id) {
+                areaToPass = previousArea;
+                console.log(`🔍 [OVERLAY_CREATE] Previous area matches display ${display.id}, will show it`);
+            }
+            else if (previousArea) {
+                console.log(`🔍 [OVERLAY_CREATE] Previous area is for different display (${previousArea.displayId} vs ${display.id}), not showing`);
+            }
+            const previousAreaArg = areaToPass ? `--previous-area=${JSON.stringify(areaToPass)}` : '--previous-area=null';
+            console.log(`🔍 [OVERLAY_CREATE] Passing argument to display ${display.id}:`, previousAreaArg);
             const overlayWindow = new electron_1.BrowserWindow({
                 width: display.workArea.width,
                 height: display.workArea.height,
@@ -902,7 +925,7 @@ async function selectAreaOnScreen() {
                     preload: path_1.default.join(__dirname, 'overlayPreload.js'),
                     nodeIntegration: false,
                     contextIsolation: true,
-                    additionalArguments: [`--display-id=${display.id}`, `--display-bounds=${JSON.stringify(display.bounds)}`]
+                    additionalArguments: [`--display-id=${display.id}`, `--display-bounds=${JSON.stringify(display.bounds)}`, previousAreaArg]
                 },
                 hasShadow: false,
                 show: false, // Start hidden
@@ -1661,5 +1684,38 @@ electron_1.ipcMain.handle('copy-screenshot-to-clipboard', async (event, data) =>
         const errorMsg = `Error copying screenshot to clipboard: ${error.message}`;
         console.error(`❌ [IPC] ${errorMsg}`, error);
         return { success: false, error: errorMsg };
+    }
+});
+// Handle copying text to clipboard
+electron_1.ipcMain.handle('copy-text-to-clipboard', async (event, text) => {
+    try {
+        console.log('🔄 [IPC] Copying text to clipboard');
+        if (!text || typeof text !== 'string') {
+            const errorMsg = 'Invalid text provided';
+            console.error(`❌ [IPC] ${errorMsg}`);
+            return { success: false, error: errorMsg };
+        }
+        // Copy text to clipboard
+        electron_1.clipboard.writeText(text);
+        console.log('✅ [IPC] Text copied to clipboard successfully');
+        return { success: true };
+    }
+    catch (error) {
+        const errorMsg = `Error copying text to clipboard: ${error.message}`;
+        console.error(`❌ [IPC] ${errorMsg}`, error);
+        return { success: false, error: errorMsg };
+    }
+});
+// Handle getting previous area selection
+electron_1.ipcMain.on('get-previous-area', (event) => {
+    try {
+        console.log('📥 [IPC] Previous area requested from overlay');
+        const previousArea = (0, storage_1.loadPreviousArea)();
+        console.log('📥 [IPC] Loaded previous area from config:', previousArea);
+        event.returnValue = previousArea;
+    }
+    catch (error) {
+        console.error('❌ [IPC] Failed to get previous area:', error);
+        event.returnValue = null;
     }
 });

@@ -6,6 +6,7 @@ export function FileMetaData() {
   const { currentScreenshot, updateScreenshotNotes } = useApp();
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState('');
+  const [isCopyAnimating, setIsCopyAnimating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync notes with current screenshot
@@ -58,9 +59,15 @@ export function FileMetaData() {
     screenshotType: 'Screenshot'
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // Could add a toast notification here
+  const copyToClipboard = async (text: string) => {
+    try {
+      await window.electron.invoke('copy-text-to-clipboard', text);
+      // Trigger animation feedback
+      setIsCopyAnimating(true);
+      setTimeout(() => setIsCopyAnimating(false), 200);
+    } catch (error) {
+      console.error('Failed to copy text to clipboard:', error);
+    }
   };
 
   const handleNotesEdit = () => {
@@ -224,10 +231,14 @@ export function FileMetaData() {
             {metadata.ocrText && (
               <button
                 onClick={() => copyToClipboard(metadata.ocrText)}
-                className="p-1 hover:bg-gray-200 rounded"
+                className={`p-1 hover:bg-gray-200 rounded transition-all duration-200 ${
+                  isCopyAnimating ? 'bg-green-200 scale-110' : ''
+                }`}
                 title="Copy OCR text"
               >
-                <Copy className="w-3 h-3 text-gray-500" />
+                <Copy className={`w-3 h-3 transition-colors duration-200 ${
+                  isCopyAnimating ? 'text-green-600' : 'text-gray-500'
+                }`} />
               </button>
             )}
           </div>

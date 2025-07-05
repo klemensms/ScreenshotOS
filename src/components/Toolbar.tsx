@@ -164,7 +164,7 @@ export function Toolbar() {
   };
 
   return (
-    <div className="bg-gray-100 border-b border-gray-300 px-4 py-2">
+    <div className="bg-gray-100 border-b border-gray-300 px-4 py-2" data-testid="toolbar">
       <div className="flex items-center gap-4">
         {/* Main Tools */}
         <div className="flex items-center gap-2">

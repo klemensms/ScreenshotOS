@@ -80,7 +80,7 @@ export function RecentPanel() {
   }, [isLoadingMore, hasMoreFiles, loadMoreScreenshots]);
 
   return (
-    <div className="bg-white border-l border-gray-300 w-80 h-full flex flex-col">
+    <div className="bg-white border-l border-gray-300 w-80 h-full flex flex-col" data-testid="recent-panel">
       {/* Header */}
       <div className="bg-gray-100 border-b border-gray-300 px-3 py-2">
         <div className="flex items-center justify-between">
@@ -128,6 +128,8 @@ export function RecentPanel() {
           <div
             key={item.id}
             onClick={() => handleScreenshotSelect(item.screenshot)}
+            data-testid="screenshot-item"
+            data-screenshot-id={item.screenshot?.id}
             className={`flex items-start gap-3 p-3 border-b border-gray-100 cursor-pointer transition-colors ${
               currentScreenshot?.id === item.screenshot?.id 
                 ? 'bg-blue-100 border-l-4 border-l-blue-500' 

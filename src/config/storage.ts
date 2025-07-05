@@ -8,7 +8,7 @@ const configDir = path.join(app.getPath('userData'), 'config');
 const configFile = path.join(configDir, 'storage-config.json');
 
 // Default config
-const defaultConfig = {
+const defaultConfig: StorageConfig = {
   saveDirectory: path.join(homedir(), 'Downloads'),
   archiveDirectory: path.join(homedir(), 'Downloads', 'Archive'),
   filenameTemplate: 'screenshot_%TIMESTAMP%',
@@ -27,6 +27,15 @@ export interface ShortcutConfig {
   areaCapture: string;
 }
 
+export interface PreviousArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  displayId?: number;
+  timestamp: number;
+}
+
 export interface StorageConfig {
   saveDirectory: string;
   archiveDirectory: string;
@@ -35,6 +44,7 @@ export interface StorageConfig {
   deleteConfirmation: boolean;
   archiveConfirmation: boolean;
   shortcuts: ShortcutConfig;
+  previousArea?: PreviousArea;
 }
 
 /**
@@ -120,4 +130,33 @@ export function ensureArchiveDirectory(directory?: string): string {
   }
   
   return archiveDir;
+}
+
+/**
+ * Saves the previous area selection to config
+ */
+export function savePreviousArea(area: { x: number; y: number; width: number; height: number; displayId?: number }): boolean {
+  const config = loadStorageConfig();
+  config.previousArea = {
+    ...area,
+    timestamp: Date.now()
+  };
+  return saveStorageConfig(config);
+}
+
+/**
+ * Loads the previous area selection from config
+ */
+export function loadPreviousArea(): PreviousArea | null {
+  const config = loadStorageConfig();
+  return config.previousArea || null;
+}
+
+/**
+ * Clears the previous area selection from config
+ */
+export function clearPreviousArea(): boolean {
+  const config = loadStorageConfig();
+  delete config.previousArea;
+  return saveStorageConfig(config);
 }

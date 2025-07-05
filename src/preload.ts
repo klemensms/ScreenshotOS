@@ -62,7 +62,8 @@ contextBridge.exposeInMainWorld('electron', {
       'ocr-get-status',
       'ocr-queue-for-processing',
       'ocr-get-queue-size',
-      'ocr-is-processing'
+      'ocr-is-processing',
+      'copy-text-to-clipboard'
     ];
     
     if (validChannels.includes(channel)) {

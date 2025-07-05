@@ -8,6 +8,9 @@ exports.saveStorageConfig = saveStorageConfig;
 exports.updateStorageConfig = updateStorageConfig;
 exports.ensureSaveDirectory = ensureSaveDirectory;
 exports.ensureArchiveDirectory = ensureArchiveDirectory;
+exports.savePreviousArea = savePreviousArea;
+exports.loadPreviousArea = loadPreviousArea;
+exports.clearPreviousArea = clearPreviousArea;
 const electron_1 = require("electron");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -101,4 +104,30 @@ function ensureArchiveDirectory(directory) {
         console.log(`Created archive directory: ${archiveDir}`);
     }
     return archiveDir;
+}
+/**
+ * Saves the previous area selection to config
+ */
+function savePreviousArea(area) {
+    const config = loadStorageConfig();
+    config.previousArea = {
+        ...area,
+        timestamp: Date.now()
+    };
+    return saveStorageConfig(config);
+}
+/**
+ * Loads the previous area selection from config
+ */
+function loadPreviousArea() {
+    const config = loadStorageConfig();
+    return config.previousArea || null;
+}
+/**
+ * Clears the previous area selection from config
+ */
+function clearPreviousArea() {
+    const config = loadStorageConfig();
+    delete config.previousArea;
+    return saveStorageConfig(config);
 }

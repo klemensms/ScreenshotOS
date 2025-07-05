@@ -145,8 +145,8 @@ function parseTimestampFromFilename(filePath: string): Date | null {
   try {
     const filename = filePath.split('/').pop() || '';
     
-    // Match pattern: screenshot_YYYY-MM-DD_HH-MM-SS.png (note the underscore between date and time)
-    const timestampMatch = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+    // Match pattern: screenshot_YYYY-MM-DD-HH-MM-SS.png (with dashes between time components)
+    const timestampMatch = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
     
     if (timestampMatch) {
       const [, year, month, day, hour, minute, second] = timestampMatch;
@@ -167,10 +167,10 @@ function parseTimestampFromFilename(filePath: string): Date | null {
       }
     }
     
-    // Try alternative patterns if needed (e.g., different separators)
-    const altMatch = filename.match(/(\d{4})-(\d{2})-(\d{2})[_\s](\d{2})[.-](\d{2})[.-](\d{2})/);
-    if (altMatch) {
-      const [, year, month, day, hour, minute, second] = altMatch;
+    // Try alternative pattern: screenshot_YYYY-MM-DD_HH-MM-SS.png (underscore between date and time)
+    const altMatch1 = filename.match(/screenshot_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+    if (altMatch1) {
+      const [, year, month, day, hour, minute, second] = altMatch1;
       const timestamp = new Date(
         parseInt(year),
         parseInt(month) - 1,
@@ -181,7 +181,26 @@ function parseTimestampFromFilename(filePath: string): Date | null {
       );
       
       if (!isNaN(timestamp.getTime())) {
-        console.log(`📅 [TIMESTAMP] Parsed from alt pattern ${filename}:`, timestamp.toLocaleString());
+        console.log(`📅 [TIMESTAMP] Parsed from alt pattern 1 ${filename}:`, timestamp.toLocaleString());
+        return timestamp;
+      }
+    }
+    
+    // Try more alternative patterns if needed (e.g., different separators)
+    const altMatch2 = filename.match(/(\d{4})-(\d{2})-(\d{2})[_\s](\d{2})[.-](\d{2})[.-](\d{2})/);
+    if (altMatch2) {
+      const [, year, month, day, hour, minute, second] = altMatch2;
+      const timestamp = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second)
+      );
+      
+      if (!isNaN(timestamp.getTime())) {
+        console.log(`📅 [TIMESTAMP] Parsed from alt pattern 2 ${filename}:`, timestamp.toLocaleString());
         return timestamp;
       }
     }
@@ -251,7 +270,8 @@ export function AppProvider({ children }: AppProviderProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreFiles, setHasMoreFiles] = useState(true);
   const [loadedFileOffset, setLoadedFileOffset] = useState(0);
-  const [allAvailableFiles, setAllAvailableFiles] = useState<Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean}>>([]);
+  const [allAvailableFiles, setAllAvailableFiles] = useState<Array<{imagePath: string, sidecarPath: string, hasSidecar: boolean, fileSize: number, fileStats: any}>>([]);
+  const [shouldAutoLoadMore, setShouldAutoLoadMore] = useState(false);
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
     selectedTool: 'arrow',
@@ -304,6 +324,15 @@ export function AppProvider({ children }: AppProviderProps) {
     };
   }, []);
 
+  // Handle auto-loading more screenshots when needed
+  useEffect(() => {
+    if (shouldAutoLoadMore && !isLoadingMore && hasMoreFiles) {
+      console.log('🔄 [AUTO_LOAD] Auto-loading more screenshots due to newer files detected...');
+      setShouldAutoLoadMore(false); // Reset flag
+      loadMoreScreenshots();
+    }
+  }, [shouldAutoLoadMore, isLoadingMore, hasMoreFiles]);
+
   // Load existing screenshots on app startup
   useEffect(() => {
     debugLogger.log('AppContext', 'useEffect: startup', 'Starting loadExistingScreenshots');
@@ -351,6 +380,7 @@ export function AppProvider({ children }: AppProviderProps) {
             const updated = [newScreenshot, ...prev];
             // Sort by timestamp (newest first) to maintain chronological order
             updated.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            console.log('🔄 [IPC] Screenshots after adding new one (newest first):', updated.slice(0, 3).map(s => s.name));
             return updated;
           });
           setCurrentScreenshot(newScreenshot);
@@ -448,7 +478,7 @@ export function AppProvider({ children }: AppProviderProps) {
       
       if (result.success && result.imageFiles) {
         // Pre-filter files by size to prevent memory overload
-        const MAX_FILES_TO_LOAD = 20; // Initial load of 20 files, infinite scroll loads the rest
+        const MAX_FILES_TO_LOAD = 50; // Initial load of 50 files to ensure we get the most recent ones
         
         const loadedScreenshots: Screenshot[] = [];
         
@@ -498,8 +528,15 @@ export function AppProvider({ children }: AppProviderProps) {
           }
         }
         
-        // Sort valid files by size (smallest first) to load manageable files first
-        validFiles.sort((a, b) => a.fileSize - b.fileSize);
+        // Sort valid files by file creation time (newest first) to load recent files first
+        validFiles.sort((a, b) => {
+          // Use birthtime/created time from fileStats if available
+          const timeA = a.fileStats?.birthtime ? new Date(a.fileStats.birthtime).getTime() : 
+                        a.fileStats?.created ? new Date(a.fileStats.created).getTime() : 0;
+          const timeB = b.fileStats?.birthtime ? new Date(b.fileStats.birthtime).getTime() : 
+                        b.fileStats?.created ? new Date(b.fileStats.created).getTime() : 0;
+          return timeB - timeA; // Newest first
+        });
         
         // Limit to maximum number of files
         const filesToLoad = validFiles.slice(0, MAX_FILES_TO_LOAD);
@@ -697,6 +734,14 @@ export function AppProvider({ children }: AppProviderProps) {
           return b.timestamp.getTime() - a.timestamp.getTime();
         });
         
+        // Debug: Log the first few screenshots after sorting to verify order
+        if (loadedScreenshots.length > 0) {
+          console.log(`🔄 [LOADING] Screenshots after sorting (newest first):`);
+          loadedScreenshots.slice(0, 5).forEach((screenshot, idx) => {
+            console.log(`    ${idx + 1}. ${screenshot.name} - ${screenshot.timestamp.toLocaleString()} - ${screenshot.filePath.split('/').pop()}`);
+          });
+        }
+        
         console.log(`🔄 [LOADING] Setting ${loadedScreenshots.length} screenshots in state...`);
         
         // Store valid files for infinite scroll and set up offset tracking
@@ -714,8 +759,26 @@ export function AppProvider({ children }: AppProviderProps) {
         setScreenshots(loadedScreenshots);
         
         if (loadedScreenshots.length > 0) {
-          console.log(`🔄 [LOADING] Setting current screenshot to:`, loadedScreenshots[0].name);
+          console.log(`🔄 [LOADING] Setting current screenshot to most recent:`, loadedScreenshots[0].name, loadedScreenshots[0].timestamp.toLocaleString());
           setCurrentScreenshot(loadedScreenshots[0]);
+          
+          // If there are more files available and we might have newer ones, trigger immediate load
+          if (hasMore && validFiles.length > actualFilesToLoad) {
+            console.log(`🔄 [LOADING] More files available, checking if we need to load newer screenshots...`);
+            // Check if the deferred files might contain newer screenshots
+            const oldestLoadedTime = loadedScreenshots[loadedScreenshots.length - 1].timestamp.getTime();
+            const hasNewerDeferred = deferredFiles.some(file => {
+              const fileTime = file.fileStats?.birthtime ? new Date(file.fileStats.birthtime).getTime() : 
+                             file.fileStats?.created ? new Date(file.fileStats.created).getTime() : 0;
+              return fileTime > oldestLoadedTime;
+            });
+            
+            if (hasNewerDeferred) {
+              console.log(`🔄 [LOADING] Detected potentially newer screenshots in deferred files, will load them...`);
+              // Set flag to auto-load more files after initial render
+              setShouldAutoLoadMore(true);
+            }
+          }
         } else {
           console.warn(`⚠️ [LOADING] No screenshots loaded - array is empty`);
         }
@@ -771,7 +834,7 @@ export function AppProvider({ children }: AppProviderProps) {
       console.log(`🔄 [LOAD_MORE] Loading more screenshots starting from offset ${loadedFileOffset}`);
       console.log(`🔄 [LOAD_MORE] Total available files: ${allAvailableFiles.length}`);
       
-      const BATCH_SIZE = 20; // Match initial load size for consistency
+      const BATCH_SIZE = 30; // Load 30 at a time for faster loading
       
       // Get the next batch of files (already filtered from initial load)
       const nextBatch = allAvailableFiles.slice(loadedFileOffset, loadedFileOffset + BATCH_SIZE);
@@ -878,6 +941,20 @@ export function AppProvider({ children }: AppProviderProps) {
           const combined = [...prev, ...newScreenshots];
           // Sort by timestamp (newest first) to maintain chronological order
           combined.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+          console.log(`📜 [LOAD_MORE] After merging and sorting, newest screenshots:`, combined.slice(0, 3).map(s => `${s.name} - ${s.timestamp.toLocaleString()}`));
+          
+          // Check if we need to update the current screenshot to the newest one
+          if (combined.length > 0) {
+            const newestScreenshot = combined[0];
+            setCurrentScreenshot(current => {
+              if (!current || newestScreenshot.timestamp.getTime() > current.timestamp.getTime()) {
+                console.log(`📜 [LOAD_MORE] Updating current screenshot to newer one:`, newestScreenshot.name, newestScreenshot.timestamp.toLocaleString());
+                return newestScreenshot;
+              }
+              return current;
+            });
+          }
+          
           return combined;
         });
         setLoadedFileOffset(prev => prev + nextBatch.length);
@@ -895,6 +972,22 @@ export function AppProvider({ children }: AppProviderProps) {
       if (loadedFileOffset + nextBatch.length >= allAvailableFiles.length) {
         setHasMoreFiles(false);
         console.log(`ℹ️ [LOAD_MORE] No more files to load`);
+      } else {
+        // Check if we should continue auto-loading for even newer files
+        const remainingFiles = allAvailableFiles.slice(loadedFileOffset + nextBatch.length);
+        const hasEvenNewer = remainingFiles.some(file => {
+          const fileTime = file.fileStats?.birthtime ? new Date(file.fileStats.birthtime).getTime() : 
+                         file.fileStats?.created ? new Date(file.fileStats.created).getTime() : 0;
+          // Check against the oldest loaded time to see if any remaining are newer
+          const oldestLoadedTime = newScreenshots.length > 0 ? 
+            Math.min(...newScreenshots.map(s => s.timestamp.getTime())) : 0;
+          return fileTime > oldestLoadedTime;
+        });
+        
+        if (hasEvenNewer) {
+          console.log(`📜 [LOAD_MORE] Even newer files detected, will continue auto-loading...`);
+          setShouldAutoLoadMore(true);
+        }
       }
       
     } catch (error) {

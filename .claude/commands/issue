@@ -3,14 +3,16 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
 Follow these steps:
 
 1. Use `gh issue view` to get the issue details
-2. Understand the problem described in the issue
-3. Search the codebase for relevant files
-4. Implement the necessary changes to fix the issue
-5. Write and run tests to verify the fix
-6. Ensure code passes linting and type checking
-7. Create a descriptive commit message
-8. Push and create a PR
-9. Review the PR
-10. If the PR review has passed, merge it into the master/main branch
+2. Think harder to:
+   1. Understand the problem described in the issue
+   2. Search the codebase for relevant files
+3. Implement the necessary changes to fix the issue
+4. Write and run tests to verify the fix using the playwright mcp server
+5. Ensure code passes linting and type checking
+6. Create a descriptive commit message
+7. Push and create a PR
+8.  Review the PR
+9.  If the PR review has passed, merge it into the master/main branch
+10. Finally, mark the issue as resolved on Github
 
 Remember to use the GitHub CLI (`gh`) for all GitHub-related tasks.

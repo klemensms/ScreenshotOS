@@ -63,7 +63,8 @@ electron_1.contextBridge.exposeInMainWorld('electron', {
             'ocr-get-status',
             'ocr-queue-for-processing',
             'ocr-get-queue-size',
-            'ocr-is-processing'
+            'ocr-is-processing',
+            'copy-text-to-clipboard'
         ];
         if (validChannels.includes(channel)) {
             return electron_1.ipcRenderer.invoke.apply(electron_1.ipcRenderer, __spreadArray([channel], args, false));
